@@ -49,7 +49,7 @@ const vecDotVec = (aVec, bVec) => aVec.reduce((acc, cur, i) => acc + cur * bVec[
 
 const vecDotMat = (vec, mat) => mat.map(row => vecDotVec(row, vec))
 
-const matDotMat = (aMat, bMat) => t(aMat).map(row => vecDotMat(row, bMat))
+const matDotMat = (bMat, aMat) => t(t(aMat).map(row => vecDotMat(row, bMat)))
 
 const getLength = vec => Math.sqrt(vec.reduce((acc, cur) => acc + cur * cur, 0))
 
