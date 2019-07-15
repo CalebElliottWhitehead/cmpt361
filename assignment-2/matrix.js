@@ -106,6 +106,7 @@ class Matrix {
             this.m[i] = new Array(this.dim).fill(0)
             this.m[i][i] = 1
         }
+        return this
     }
     scale(x, y, z) {
         if (y !== undefined) {
@@ -121,10 +122,18 @@ class Matrix {
         this.m[1][3] += y
         this.m[2][3] += z
     }
-    rotate(theta, x, y, z) {}
+    rotate(theta, x, y, z) {
+        const rotationMatrix = createRotationMatrix(theta, x, y, z)
+        this.m = matDotMat(this.m, rotationMatrix.m)
+    }
     dot(mat) {
         this.m = matDotMat(this.m, mat.m)
         return this
+    }
+    set t(vec) {
+        this.m[0][3] = vec[0]
+        this.m[1][3] = vec[1]
+        this.m[2][3] = vec[2]
     }
     set r(mat) {
         this.m = [

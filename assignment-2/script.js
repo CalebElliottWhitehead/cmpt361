@@ -3,7 +3,11 @@ const cos = theta => Math.cos(theta)
 const tan = theta => Math.tan(theta)
 
 const config = {
-    normalize: false
+    ambient: [0.01, 0.01, 0.005],
+    diffuse: [0.83, 0.69, 0.22],
+    specular: [1, 1, 1],
+    shine: 0,
+    pointLightPosition: [5, -5, 0, 0]
 }
 
 const createProjectionMat = (fovy, aspect, near, far) => {
@@ -101,7 +105,19 @@ const initBuffers = gl => {
     gl.bindBuffer(gl.ARRAY_BUFFER, normalsBuffer)
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(normals.flat(2)), gl.STATIC_DRAW)
 
+    const lightsBuffer = gl.createBuffer()
+    gl.bindBuffer(gl.ARRAY_BUFFER, lightsBuffer)
+    const lightLines = getCubeLines()
+    const lightLinesCount = lightLines.length
+    gl.bufferData(
+        gl.ARRAY_BUFFER,
+        new Float32Array(lightLines.flat().map(coord => coord + 3)),
+        gl.STATIC_DRAW
+    )
+
     return {
+        lights: lightsBuffer,
+        lightsLength: lightLinesCount,
         position: positionBuffer,
         indices: indexBuffer,
         indicesLength: faces.flat().length,
@@ -109,8 +125,9 @@ const initBuffers = gl => {
         normalsLength: normals.flat(2).length
     }
 }
-let first = true
-const draw = (gl, shader, buffers, translationMat) => {
+let log = true
+setInterval(() => (log = true), 500)
+const draw = (gl, shader, buffers, transformationMat, pointLightPosition) => {
     gl.clearColor(0.0, 0.0, 0.0, 1.0) // Clear to black, fully opaque
     gl.clearDepth(1.0) // Clear everything
     gl.enable(gl.DEPTH_TEST) // Enable depth testing
@@ -126,16 +143,16 @@ const draw = (gl, shader, buffers, translationMat) => {
 
     const modelViewMat = new Matrix()
 
-    if (first) {
-        console.log(modelViewMat.string)
-        // first = false
-    }
+    modelViewMat.dot(transformationMat)
 
-    modelViewMat.dot(translationMat)
+    pointLightPosition = vecDotMat(pointLightPosition, modelViewMat.m)
 
-    if (first) {
-        console.log(modelViewMat.string)
-        first = false
+    pointLightPosition[2] += -10
+
+    if (log) {
+        console.log(...pointLightPosition)
+        console.log()
+        log = false
     }
 
     gl.bindBuffer(gl.ARRAY_BUFFER, buffers.position)
@@ -155,17 +172,64 @@ const draw = (gl, shader, buffers, translationMat) => {
     gl.uniformMatrix4fv(shader.u.modelViewMatrix, false, modelViewMat.out)
     gl.uniformMatrix4fv(shader.u.normalMatrix, false, projectionMat.out)
 
-    gl.uniform3fv(shader.u.lightPosition, new Float32Array([-4, 1, 2]))
-    gl.uniform3fv(shader.u.diffuseColor, new Float32Array([0.83, 0.69, 0.22]))
-    gl.uniform3fv(shader.u.ambientColor, new Float32Array([0.01, 0.01, 0.005]))
-    gl.uniform3fv(shader.u.specularColor, new Float32Array([1, 1, 1]))
-    gl.uniform1f(shader.u.shine, 10)
+    gl.uniform3fv(shader.u.lightPosition, new Float32Array(pointLightPosition.slice(0, 3)))
+    gl.uniform3fv(shader.u.ambientColor, new Float32Array(config.ambient))
+    gl.uniform3fv(shader.u.diffuseColor, new Float32Array(config.diffuse))
+    gl.uniform3fv(shader.u.specularColor, new Float32Array(config.specular))
+    gl.uniform1f(shader.u.shine, config.shine)
 
     gl.drawElements(gl.TRIANGLES, buffers.indicesLength, gl.UNSIGNED_SHORT, 0)
+
+    gl.drawArrays(gl.LINES, 0, buffers.lightsLength)
+}
+
+const render = (then, now, theta, transformationMat, lastPosition) => {
+    now *= 0.001 // convert to seconds
+    const delta = now - then
+    then = now
+    theta += delta
+
+    const movement = {
+        x: input.mouse.x - lastPosition.x,
+        y: input.mouse.y - lastPosition.y
+    }
+
+    lastPosition = {
+        x: input.mouse.x,
+        y: input.mouse.y
+    }
+
+    if (input.mouse.rightClick && (movement.x != 0 || movement.y != 0)) {
+        const vec = [-movement.y, -movement.x, 0]
+        transformationMat.rotate(getLength(vec) / 100, ...vecNorm(vec))
+    }
+
+    if (input.mouse.leftClick && (movement.x != 0 || movement.y != 0)) {
+        transformationMat.translate(movement.x / 100, -movement.y / 100, 0)
+    }
+
+    if (input.r) {
+        transformationMat = new Matrix()
+        transformationMat.translate(0, 0, -10)
+        input.r = false
+    }
+
+    if (input.wheel) {
+        transformationMat.translate(0, 0, input.wheel)
+        input.wheel = 0
+    }
+
+    const lightRotationMat = createRotationMatrix(theta, 0, 1, 0)
+
+    const pointLightPosition = vecDotMat(config.pointLightPosition, lightRotationMat.m)
+
+    draw(gl, shader, buffers, transformationMat, pointLightPosition)
+
+    requestAnimationFrame(now => render(then, now, theta, transformationMat, lastPosition))
 }
 
 // new source
-const vertexShaderSource2 = `
+const vertexShaderSource = `
 attribute vec3 a_Position, a_Normal;
 
 uniform mat4 u_ProjectionMatrix, u_ModelViewMatrix, u_NormalMatrix;
@@ -180,7 +244,7 @@ void main() {
 }
 `
 
-const fragmentShaderSource2 = `
+const fragmentShaderSource = `
 precision mediump float;
 
 varying vec3 v_NormalInterp, v_Position;
@@ -211,7 +275,7 @@ const canvas = document.querySelector("#canvas")
 const gl = canvas.getContext("webgl") || canvas.getContext("experimental-webgl")
 if (!gl) alert("Unable to initialize WebGL. Your browser or machine may not support it.")
 
-const shaderProgram = createShaderProgram(gl, vertexShaderSource2, fragmentShaderSource2)
+const shaderProgram = createShaderProgram(gl, vertexShaderSource, fragmentShaderSource)
 
 const shader = {
     program: shaderProgram,
@@ -233,65 +297,49 @@ const shader = {
 
 const input = {
     mouse: {
-        clicked: false,
+        leftClick: false,
+        rightClick: false,
         x: 0,
         y: 0
     },
-    wheel: {
-        z: 0
-    }
+    wheel: 0,
+    r: false
 }
 
-const clicked = isClicked => (input.mouse.clicked = isClicked)
+const leftClick = isClicked => (input.mouse.leftClick = isClicked)
 
-window.addEventListener("mousedown", () => clicked(true))
+const rightClick = isClicked => (input.mouse.rightClick = isClicked)
+
+window.addEventListener("contextmenu", event => event.preventDefault())
+
+window.addEventListener("mousedown", event => {
+    if (event.button === 0) leftClick(true)
+    if (event.button === 2) rightClick(true)
+})
 
 window.addEventListener("mousemove", event => {
     input.mouse.x = event.clientX
     input.mouse.y = event.clientY
 })
 
-window.addEventListener("mouseup", () => clicked(false))
+window.addEventListener("mouseup", event => {
+    if (event.button === 0) leftClick(false)
+    if (event.button === 2) rightClick(false)
+})
 
 window.addEventListener("wheel", event => {
-    input.wheel.z = event.deltaY
-    console.log(event.deltaY)
+    input.wheel = event.deltaY
+})
+
+window.addEventListener("keydown", event => {
+    if (event.key === "r") {
+        input.r = true
+    }
 })
 
 const buffers = initBuffers(gl)
 
-const render = (then, now, translationMat, lastPosition) => {
-    now *= 0.001 // convert to seconds
-    const delta = now - then
-    then = now
+const transformationMat = new Matrix()
+transformationMat.translate(0, 0, -10)
 
-    const movement = {
-        x: 0,
-        y: 0,
-        z: 0
-    }
-
-    if (input.mouse.clicked) {
-        movement.x = input.mouse.x - lastPosition.x
-        movement.y = input.mouse.y - lastPosition.y
-    }
-
-    movement.z = input.wheel.z - lastPosition.z
-
-    lastPosition = {
-        x: input.mouse.x,
-        y: input.mouse.y,
-        z: input.wheel.z
-    }
-
-    translationMat.translate(movement.x / 100, -movement.y / 100, input.wheel.z * delta)
-
-    draw(gl, shader, buffers, translationMat)
-
-    requestAnimationFrame(now => render(then, now, translationMat, lastPosition))
-}
-
-const translationMat = new Matrix()
-translationMat.translate(0, 0, -10)
-
-requestAnimationFrame(now => render(0, now, translationMat, { x: 0, y: 0, z: 0 }))
+requestAnimationFrame(now => render(0, now, 0, transformationMat, { x: 0, y: 0 }))
