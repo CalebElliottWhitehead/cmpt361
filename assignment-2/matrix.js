@@ -23,13 +23,13 @@ const mat2a = [
 ]
 
 // prettier-ignore
-const mat2 = [
+const mat2b = [
     [5, 6], 
     [7, 8]
 ]
 
 // prettier-ignore
-const mat3 = [
+const mat3a = [
     [1, 2, 2], 
     [3, 4, 5], 
     [3, 3, 4]
@@ -43,13 +43,13 @@ const mat4a = [
     [6, 7, 8, 1]
 ]
 
-const transpose = mat => mat.map((row, rowNum) => row.map((_, colNum) => mat[colNum][rowNum]))
+const t = mat => mat.map((row, rowNum) => row.map((_, colNum) => mat[colNum][rowNum]))
 
 const vecDotVec = (aVec, bVec) => aVec.reduce((acc, cur, i) => acc + cur * bVec[i], 0)
 
 const vecDotMat = (vec, mat) => mat.map(row => vecDotVec(row, vec))
 
-const matDotMat = (aMat, bMat) => transpose(aMat).map(row => vecDotMat(row, bMat))
+const matDotMat = (aMat, bMat) => t(aMat).map(row => vecDotMat(row, bMat))
 
 const getLength = vec => Math.sqrt(vec.reduce((acc, cur) => acc + cur * cur, 0))
 
@@ -58,8 +58,6 @@ const vecDiv = (vec, den) => vec.map(e => e / den)
 const matDiv = (mat, den) => mat.map(row => vecDiv(row, den))
 
 const vecNorm = vec => vecDiv(vec, getLength(vec))
-
-const mat2Det = mat => mat[0][0] * mat[1][1] - mat[0][1] * mat[1][0]
 
 // prettier-ignore
 const reduceDim = (mat, row0, col0) => mat
@@ -73,20 +71,23 @@ const removeRowCol = (mat, rowIndex = 0, colIndex = 0) => mat
 
 const adjSign = (rowIndex, colIndex = 0) => 1 - ((rowIndex + (colIndex % 2)) % 2) * 2
 
-const det = mat => {
+const determinant = mat => {
     if (dim(mat) <= 2) return mat[0][0] * mat[1][1] - mat[0][1] * mat[1][0]
-    return mat[0].reduce((acc, cur, i) => acc + adjSign(i) * cur * det(removeRowCol(mat, 0, i)), 0)
+    return mat[0].reduce(
+        (acc, cur, i) => acc + adjSign(i) * cur * determinant(removeRowCol(mat, 0, i)),
+        0
+    )
 }
 
 // prettier-ignore
 const adj = mat =>
     mat.map((row, rowIndex) =>
         row.map((e, colIndex) =>
-            e * adjSign(rowIndex, colIndex) * det(removeRowCol(rowIndex, colIndex))
+            e * adjSign(rowIndex, colIndex) * determinant(removeRowCol(rowIndex, colIndex))
         )
     )
 
-const inv = mat => matDiv(adj(mat), det(mat))
+const inv = mat => matDiv(adj(mat), determinant(mat))
 
 const identity = dim => {
     const mat = new Array(dim)
@@ -133,35 +134,16 @@ class Matrix {
             this.m[3]
         ]
     }
+    get r() {
+        return reduceDim(this.m, 0, 0)
+    }
     get det() {
-        return det(reduceDim(this.m))
+        return determinant(reduceDim(this.m))
     }
     get out() {
-        return new Float32Array(transpose(this.m).flat())
+        return new Float32Array(t(this.m).flat())
     }
     get string() {
         return "[" + this.m.map(row => row.join(", ")).join("]\n[") + "]"
     }
 }
-const matt = new Matrix()
-console.log(matt.m)
-
-console.log("+")
-console.log(stringify(mat2a))
-console.log("=")
-console.log(stringify(vecDotMat(vec, mat2a)))
-console.log(";")
-console.log(stringify(matDotMat(mat2a, mat2)))
-console.log(vecNorm(vec))
-console.log(";")
-console.log(stringify(mat4a))
-console.log(";")
-console.log(stringify(removeRowCol(mat4a, 1, 1)))
-console.log(";")
-const matrix = new Matrix()
-console.log(matrix.string)
-matrix.r = mat3
-console.log(";")
-console.log(matrix.string)
-
-// console.log(stringify(identity(4)))
