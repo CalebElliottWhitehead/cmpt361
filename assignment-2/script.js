@@ -7,7 +7,8 @@ const config = {
     diffuse: [0.83, 0.69, 0.22],
     specular: [1, 1, 1],
     shine: 0,
-    pointLightPosition: [5, -5, 0, 0]
+    pointLightPosition: [5, -5, 0, 0],
+    spotLightPosition: [5, -10, -15, 0]
 }
 
 const createProjectionMat = (fovy, aspect, near, far) => {
@@ -74,8 +75,6 @@ const getSurfaceNormal = positions => {
     return normal
 }
 
-// Initialize the buffers we'll need. For this demo, we just
-// have one object -- a simple three-dimensional cube.
 const initBuffers = gl => {
     const lines = getCubeLines()
     const linesCount = lines.length
@@ -112,17 +111,17 @@ const initBuffers = gl => {
     gl.bindBuffer(gl.ARRAY_BUFFER, normalsBuffer)
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(normals.flat(2)), gl.STATIC_DRAW)
 
-    const lightsBuffer = gl.createBuffer()
-    gl.bindBuffer(gl.ARRAY_BUFFER, lightsBuffer)
-    gl.bufferData(
-        gl.ARRAY_BUFFER,
-        new Float32Array(lines.flat().map(coord => coord + 3)),
-        gl.STATIC_DRAW
-    )
+    // const lightsBuffer = gl.createBuffer()
+    // gl.bindBuffer(gl.ARRAY_BUFFER, lightsBuffer)
+    // gl.bufferData(
+    //     gl.ARRAY_BUFFER,
+    //     new Float32Array(lines.flat().map(coord => coord + 3)),
+    //     gl.STATIC_DRAW
+    // )
 
     return {
-        lights: lightsBuffer,
-        lightsLength: linesCount,
+        // lights: lightsBuffer,
+        // lightsLength: linesCount,
         position: positionBuffer,
         length: verticesLength,
         indices: indexBuffer,
@@ -163,9 +162,9 @@ const draw = (gl, shader, buffers, transformationMat, pointLightPosition) => {
     gl.vertexAttribPointer(shader.a.position, 3, gl.FLOAT, false, 0, 0)
     gl.enableVertexAttribArray(shader.a.position)
 
-    gl.bindBuffer(gl.ARRAY_BUFFER, buffers.lines)
-    gl.vertexAttribPointer(shader.a.position, 3, gl.FLOAT, false, 0, 0)
-    gl.enableVertexAttribArray(shader.a.position)
+    // gl.bindBuffer(gl.ARRAY_BUFFER, buffers.lines)
+    // gl.vertexAttribPointer(shader.a.position, 3, gl.FLOAT, false, 0, 0)
+    // gl.enableVertexAttribArray(shader.a.position)
 
     gl.bindBuffer(gl.ARRAY_BUFFER, buffers.normals)
     gl.vertexAttribPointer(shader.a.normal, 3, gl.FLOAT, false, 0, 0)
@@ -180,7 +179,11 @@ const draw = (gl, shader, buffers, transformationMat, pointLightPosition) => {
     gl.uniformMatrix4fv(shader.u.modelViewMatrix, false, modelViewMat.out)
     gl.uniformMatrix4fv(shader.u.normalMatrix, false, projectionMat.out)
 
-    gl.uniform3fv(shader.u.lightPosition, new Float32Array(pointLightPosition.slice(0, 3)))
+    gl.uniform3fv(shader.u.pointLightPosition, new Float32Array(pointLightPosition.slice(0, 3)))
+    gl.uniform3fv(
+        shader.u.spotLightPosition,
+        new Float32Array(config.spotLightPosition.slice(0, 3))
+    )
     gl.uniform3fv(shader.u.ambientColor, new Float32Array(config.ambient))
     gl.uniform3fv(shader.u.diffuseColor, new Float32Array(config.diffuse))
     gl.uniform3fv(shader.u.specularColor, new Float32Array(config.specular))
@@ -188,7 +191,7 @@ const draw = (gl, shader, buffers, transformationMat, pointLightPosition) => {
 
     gl.drawElements(gl.TRIANGLES, buffers.indicesLength, gl.UNSIGNED_SHORT, 0)
 
-    gl.drawArrays(gl.LINES, buffers.length, buffers.lightsLength)
+    // gl.drawArrays(gl.LINES, buffers.length, buffers.lightsLength)
 }
 
 const render = (then, now, theta, transformationMat, lastPosition) => {
@@ -255,18 +258,20 @@ void main() {
 const fragmentShaderSource = `
 precision mediump float;
 
-varying vec3 v_NormalInterp, v_Position;
-
-uniform vec3 u_LightPosition, u_AmbientColor, u_DiffuseColor, u_SpecularColor;
+uniform vec3 u_PointLightPosition, u_SpotLightPosition, u_AmbientColor, u_DiffuseColor, u_SpecularColor;
 uniform float u_Shine;
+
+varying vec3 v_NormalInterp, v_Position;
 
 void main() {
     vec3 Normal = normalize(v_NormalInterp);
-    vec3 LightDirection = normalize(u_LightPosition - v_Position);
-    vec3 ReflectDirection = reflect(-LightDirection, Normal);
     vec3 ViewDirection = normalize(-v_Position);
 
-    float Lambertian = max(dot(LightDirection, Normal), 0.0);
+    // Point
+    vec3 PointLightDirection = normalize(u_PointLightPosition - v_Position);
+    vec3 ReflectDirection = reflect(-PointLightDirection, Normal);
+
+    float Lambertian = max(dot(PointLightDirection, Normal), 0.0);
     float SpecularAngle = 0.0;
     float Specular = 0.0;
 
@@ -275,7 +280,25 @@ void main() {
         float Specular = pow(SpecularAngle, u_Shine);
     }
 
-    gl_FragColor = vec4(u_AmbientColor + Lambertian * u_DiffuseColor + Specular * u_SpecularColor, 1.0);
+    vec4 PointLighting = vec4(u_AmbientColor + Lambertian * u_DiffuseColor + Specular * u_SpecularColor, 1.0);
+
+    // Spot
+    vec3 SpotLightDirection = normalize(u_SpotLightPosition - v_Position);
+    vec3 SpotReflectDirection = reflect(-SpotLightDirection, Normal);
+
+    float SpotLambertian = max(dot(SpotLightDirection, Normal), 0.0);
+    float SpotSpecularAngle = 0.0;
+    float SpotSpecular = 0.0;
+
+    if (SpotLambertian > 0.0) {
+        float SpotSpecularAngle = max(dot(SpotReflectDirection, ViewDirection), 0.0);
+        float SpotSpecular = pow(SpotSpecularAngle, u_Shine);
+    }
+
+    vec4 SpotLighting = vec4(u_AmbientColor + SpotLambertian * u_DiffuseColor + SpotSpecular * u_SpecularColor, 1.0);
+    
+    // #phonglyfe
+    gl_FragColor = PointLighting + SpotLighting;
 }
 `
 
@@ -295,7 +318,8 @@ const shader = {
         projectionMatrix: gl.getUniformLocation(shaderProgram, "u_ProjectionMatrix"),
         modelViewMatrix: gl.getUniformLocation(shaderProgram, "u_ModelViewMatrix"),
         normalMatrix: gl.getUniformLocation(shaderProgram, "u_NormalMatrix"),
-        lightPosition: gl.getUniformLocation(shaderProgram, "u_LightPosition"),
+        pointLightPosition: gl.getUniformLocation(shaderProgram, "u_PointLightPosition"),
+        spotLightPosition: gl.getUniformLocation(shaderProgram, "u_SpotLightPosition"),
         ambientColor: gl.getUniformLocation(shaderProgram, "u_AmbientColor"),
         diffuseColor: gl.getUniformLocation(shaderProgram, "u_DiffuseColor"),
         specularColor: gl.getUniformLocation(shaderProgram, "u_SpecularColor"),
