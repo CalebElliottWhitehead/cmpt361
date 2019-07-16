@@ -77,9 +77,14 @@ const getSurfaceNormal = positions => {
 // Initialize the buffers we'll need. For this demo, we just
 // have one object -- a simple three-dimensional cube.
 const initBuffers = gl => {
+    const lines = getCubeLines()
+    const linesCount = lines.length
+
     const positionBuffer = gl.createBuffer()
     gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer)
     const vertices = get_vertices()
+    vertices.flat()
+    const verticesLength = vertices.flat().length
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices.flat()), gl.STATIC_DRAW)
 
     const indexBuffer = gl.createBuffer()
@@ -101,24 +106,25 @@ const initBuffers = gl => {
     })
     normals.map(normal => normalize(normal))
 
+    lines.forEach(() => normals.push([0, 0, 0]))
+
     const normalsBuffer = gl.createBuffer()
     gl.bindBuffer(gl.ARRAY_BUFFER, normalsBuffer)
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(normals.flat(2)), gl.STATIC_DRAW)
 
     const lightsBuffer = gl.createBuffer()
     gl.bindBuffer(gl.ARRAY_BUFFER, lightsBuffer)
-    const lightLines = getCubeLines()
-    const lightLinesCount = lightLines.length
     gl.bufferData(
         gl.ARRAY_BUFFER,
-        new Float32Array(lightLines.flat().map(coord => coord + 3)),
+        new Float32Array(lines.flat().map(coord => coord + 3)),
         gl.STATIC_DRAW
     )
 
     return {
         lights: lightsBuffer,
-        lightsLength: lightLinesCount,
+        lightsLength: linesCount,
         position: positionBuffer,
+        length: verticesLength,
         indices: indexBuffer,
         indicesLength: faces.flat().length,
         normals: normalsBuffer,
@@ -150,12 +156,14 @@ const draw = (gl, shader, buffers, transformationMat, pointLightPosition) => {
     pointLightPosition[2] += -10
 
     if (log) {
-        console.log(...pointLightPosition)
-        console.log()
         log = false
     }
 
     gl.bindBuffer(gl.ARRAY_BUFFER, buffers.position)
+    gl.vertexAttribPointer(shader.a.position, 3, gl.FLOAT, false, 0, 0)
+    gl.enableVertexAttribArray(shader.a.position)
+
+    gl.bindBuffer(gl.ARRAY_BUFFER, buffers.lines)
     gl.vertexAttribPointer(shader.a.position, 3, gl.FLOAT, false, 0, 0)
     gl.enableVertexAttribArray(shader.a.position)
 
@@ -180,7 +188,7 @@ const draw = (gl, shader, buffers, transformationMat, pointLightPosition) => {
 
     gl.drawElements(gl.TRIANGLES, buffers.indicesLength, gl.UNSIGNED_SHORT, 0)
 
-    gl.drawArrays(gl.LINES, 0, buffers.lightsLength)
+    gl.drawArrays(gl.LINES, buffers.length, buffers.lightsLength)
 }
 
 const render = (then, now, theta, transformationMat, lastPosition) => {
