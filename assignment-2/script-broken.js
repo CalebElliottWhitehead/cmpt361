@@ -1,8 +1,8 @@
+// helpers
 const sin = theta => Math.sin(theta)
 const cos = theta => Math.cos(theta)
 const tan = theta => Math.tan(theta)
-
-const glsl = shader => shader
+const toRadians = degrees => (degrees * Math.PI) / 180
 
 const config = {
     ambient: [0.01, 0.01, 0.005],
@@ -10,11 +10,10 @@ const config = {
     specular: [1, 0.9, 0.3],
     shine: 1,
     limit: -0.992,
-    pointLightPosition: [5, 5, 0, 0],
-    spotLightPosition: [0, -1, 0, 0],
-    spotLightDirection: [0, 0, -1, 0],
-    spotLightBound: [-2, 2],
-    cameraPosition: [0, 0, -15]
+    pointLightPosition: [5, -5, 0],
+    spotLightPosition: [0, -1, 0],
+    spotLightDirection: [0, 0, -1],
+    cameraPosition: [0, 0, -10]
 }
 
 const createProjectionMat = (fovy, aspect, near, far) => {
@@ -77,7 +76,7 @@ const createShaderProgram = (gl, vertexShaderSource, fragmentShaderSource) => {
 const getSurfaceNormal = positions => {
     const t1 = subtract(positions[1], positions[0])
     const t2 = subtract(positions[2], positions[0])
-    const normal = normalize(cross(t1, t2))
+    const normal = normalize(cross(t2, t1))
     return normal
 }
 
@@ -87,7 +86,6 @@ const createBunnyBuffer = gl => {
     gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer)
 
     const vertices = get_vertices()
-    vertices.flat()
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices.flat()), gl.STATIC_DRAW)
 
     // Index Buffer
@@ -136,13 +134,8 @@ const createPointLightBuffer = gl => {
     const normalsBuffer = gl.createBuffer()
     gl.bindBuffer(gl.ARRAY_BUFFER, normalsBuffer)
 
-    console.log(vertices)
-    const surfaces = []
-    for (let i = 0; i < vertices.length; i += 3) {
-        surfaces.push([vertices[i], vertices[i + 1], vertices[i + 2]])
-    }
-    const normals = surfaces.map(surface => [[0, 0, 0], [0, 0, 0], [0, 0, 0]])
-    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(normals.flat(2)), gl.STATIC_DRAW)
+    const normals = vertices.map(() => [0, 0, 0])
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(normals.flat()), gl.STATIC_DRAW)
 
     return {
         position: positionBuffer,
@@ -151,36 +144,9 @@ const createPointLightBuffer = gl => {
     }
 }
 
-const createSpotLightBuffer = gl => {
-    // Position Buffer
-    const positionBuffer = gl.createBuffer()
-    gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer)
-
-    const vertices = getConeVertices()
-    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices.flat()), gl.STATIC_DRAW)
-
-    // Normals Buffer
-    const normalsBuffer = gl.createBuffer()
-    gl.bindBuffer(gl.ARRAY_BUFFER, normalsBuffer)
-
-    console.log(vertices)
-    const surfaces = []
-    for (let i = 0; i < vertices.length; i += 3) {
-        surfaces.push([vertices[i], vertices[i + 1], vertices[i + 2]])
-    }
-    const normals = surfaces.map(surface => [[0, 0, 0], [0, 0, 0], [0, 0, 0]])
-    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(normals.flat(2)), gl.STATIC_DRAW)
-
-    return {
-        position: positionBuffer,
-        normals: normalsBuffer,
-        length: vertices.length
-    }
-}
+const createSpotLightBuffer = gl => {}
 
 const drawBunny = (gl, shader, buffer) => {
-    gl.uniform1f(shader.u.shape, 0)
-
     gl.bindBuffer(gl.ARRAY_BUFFER, buffer.position)
     gl.vertexAttribPointer(shader.a.position, 3, gl.FLOAT, false, 0, 0)
     gl.enableVertexAttribArray(shader.a.position)
@@ -189,15 +155,14 @@ const drawBunny = (gl, shader, buffer) => {
     gl.vertexAttribPointer(shader.a.normal, 3, gl.FLOAT, false, 0, 0)
     gl.enableVertexAttribArray(shader.a.normal)
 
-    // Tell WebGL which indices to use to index the vertices
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, buffer.indices)
-
+    gl.useProgram(shader.program)
     gl.drawElements(gl.TRIANGLES, buffer.length, gl.UNSIGNED_SHORT, 0)
 }
 
-const drawPointLight = (gl, shader, buffer, position) => {
-    gl.uniform1f(shader.u.shape, 1)
-
+const drawPointLight = (gl, shader, buffer, startPosition, theta) => {
+    const rotationMat = createRotationMatrix(theta, 0, 1, 0)
+    const position = vecDotMat([...startPosition, 0], rotationMat.m)
     gl.uniform3fv(shader.u.pointLightPosition, new Float32Array(position.slice(0, 3)))
 
     gl.bindBuffer(gl.ARRAY_BUFFER, buffer.position)
@@ -208,38 +173,41 @@ const drawPointLight = (gl, shader, buffer, position) => {
     gl.vertexAttribPointer(shader.a.normal, 3, gl.FLOAT, false, 0, 0)
     gl.enableVertexAttribArray(shader.a.normal)
 
-    gl.drawArrays(gl.LINE_STRIP, 0, buffer.length)
+    gl.useProgram(shader.program)
+    gl.drawArrays(gl.TRIANGLES, 0, buffer.length)
 }
 
-const drawSpotLight = (gl, shader, buffer, position, direction) => {
-    gl.uniform1f(shader.u.shape, 2)
-    gl.uniform3fv(shader.u.spotLightPosition, new Float32Array(position.slice(0, 3)))
-    gl.uniform3fv(shader.u.spotLightDirection, new Float32Array(direction.slice(0, 3)))
+const drawSpotLight = (gl, shader, buffer, startPosition, theta, direction) => {
+    gl.uniform3fv(shader.u.spotLightPosition, new Float32Array(spotLightPosition.slice(0, 3)))
+
+    const spotLightPosition = config.spotLightPosition
+    spotLightPosition[0] += Math.sin(now) / 50
 }
 
-const setView = (gl, shader, transformationMat, pointLightPosition, spotLightPosition) => {
-    gl.clearColor(0.0, 0.0, 0.0, 1.0) // Clear to black, fully opaque
-    gl.clearDepth(1.0) // Clear everything
+const setView = (gl, cameraTransformMat) => {
+    gl.clearColor(0.0, 0.0, 0.0, 1.0)
+    gl.clearDepth(1.0)
     gl.enable(gl.DEPTH_TEST) // Enable depth testing
     gl.depthFunc(gl.LEQUAL) // Near things obscure far things
 
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT)
-    const fieldOfView = (45 * Math.PI) / 180 // in radians
-    const aspect = gl.canvas.clientWidth / gl.canvas.clientHeight
-    const zNear = 0.1
-    const zFar = 100.0
 
-    const projectionMat = createProjectionMat(fieldOfView, aspect, zNear, zFar)
+    const fieldOfView = toRadians(45)
+    const aspect = gl.canvas.clientWidth / gl.canvas.clientHeight
+    const near = 0.1
+    const far = 100.0
+    const projectionMat = createProjectionMat(fieldOfView, aspect, near, far)
 
     const modelViewMat = new Matrix()
-
-    modelViewMat.dot(transformationMat)
+    modelViewMat.dot(cameraTransformMat)
 
     gl.uniformMatrix4fv(shader.u.projectionMatrix, false, projectionMat.out)
     gl.uniformMatrix4fv(shader.u.modelViewMatrix, false, modelViewMat.out)
+    gl.uniformMatrix4fv(shader.u.normalMatrix, false, projectionMat.out)
 }
 
-const setUniforms = (gl, config) => {
+const setUniforms = (gl, shader, config) => {
+    gl.uniform3fv(shader.u.spotLightDirection, new Float32Array(config.spotLightDirection))
     gl.uniform3fv(shader.u.ambientColor, new Float32Array(config.ambient))
     gl.uniform3fv(shader.u.diffuseColor, new Float32Array(config.diffuse))
     gl.uniform3fv(shader.u.specularColor, new Float32Array(config.specular))
@@ -249,46 +217,27 @@ const setUniforms = (gl, config) => {
 
 // new source
 const vertexShaderSource = `
-precision mediump float;
-
 attribute vec3 a_Position, a_Normal;
 
-uniform mat4 u_ProjectionMatrix, u_ModelViewMatrix;
-
-uniform vec3 u_PointLightPosition, u_SpotLightPosition;
-
-uniform float u_Shape;
+uniform mat4 u_ProjectionMatrix, u_ModelViewMatrix, u_NormalMatrix;
 
 varying vec3 v_NormalInterp, v_Position;
 
 void main() {
-    vec4 Position;
-
-    if (u_Shape == 1.0) {
-        Position = u_ProjectionMatrix * u_ModelViewMatrix * vec4(a_Position + u_PointLightPosition, 1.0);
-    } else if (u_Shape == 2.0) {
-        Position = u_ProjectionMatrix * u_ModelViewMatrix * vec4(a_Position + u_SpotLightPosition, 1.0);
-    } else {
-        Position = u_ProjectionMatrix * u_ModelViewMatrix * vec4(a_Position, 1.0);
-    }
-
-    gl_Position = Position;
-
+    gl_Position = u_ProjectionMatrix * u_ModelViewMatrix * vec4(a_Position, 1.0);
+    vec4 Position = u_ModelViewMatrix * vec4(a_Position, 1.0);
     v_Position = vec3(Position) / Position.w;
-
-    v_NormalInterp = vec3(u_ProjectionMatrix * vec4(a_Normal, 0.0));
+    v_NormalInterp = vec3(u_NormalMatrix * vec4(a_Normal, 0.0));
 }
 `
 
 const fragmentShaderSource = `
 precision mediump float;
 
-uniform mat4 u_ProjectionMatrix;
-
 uniform vec3 u_PointLightPosition, u_SpotLightPosition, u_AmbientColor, 
     u_DiffuseColor, u_SpecularColor, u_LightDirection;
 
-uniform float u_Shine, u_Limit, u_Shape;
+uniform float u_Shine, u_Limit;
 
 varying vec3 v_NormalInterp, v_Position;
 
@@ -297,39 +246,44 @@ void main() {
     vec3 ViewDirection = normalize(-v_Position);
 
     // Point *****************************************************************
-    vec3 PointLightDirection = normalize(vec3(u_ProjectionMatrix * vec4(u_PointLightPosition, 0.0)) - v_Position);
-    vec3 ReflectDirection = reflect(PointLightDirection, Normal);
+    vec3 PointLightDirection = normalize(u_PointLightPosition - v_Position);
+    vec3 ReflectDirection = reflect(-PointLightDirection, Normal);
+
     float Lambertian = max(dot(PointLightDirection, Normal), 0.0);
     float SpecularAngle = 0.0;
     float Specular = 0.0;
-    if (Lambertian > 2.0) {
+
+    if (Lambertian > 10.0) {
         SpecularAngle = max(dot(ReflectDirection, ViewDirection), 0.0);
         Specular = pow(SpecularAngle, u_Shine);
     }
+
     vec4 PointLighting = vec4(u_AmbientColor + Lambertian * u_DiffuseColor + Specular * u_SpecularColor, 1.0);
-    
+
     // Spot *****************************************************************
-    vec3 SpotLightDirection = normalize(u_SpotLightPosition - v_Position);
+    vec3 SpotLightDirection = normalize(-u_SpotLightPosition - v_Position);
     vec3 SpotReflectDirection = reflect(-SpotLightDirection, Normal);
+
     float SpotLambertian = 0.0;
     float SpotSpecularAngle = 0.0;
     float SpotSpecular = 0.0;
+
     float AngleFromCenter = dot(-SpotLightDirection, -u_LightDirection);
+
     if (AngleFromCenter < u_Limit) {
         SpotLambertian = dot(SpotLightDirection, Normal);
         // if (SpotLambertian > 0.0) {
         //     SpotSpecular = pow(dot(Normal, SpotReflectDirection), u_Shine);
         // }
     }
+
     vec4 SpotLighting = vec4(u_AmbientColor + SpotLambertian * u_DiffuseColor + SpotSpecular * u_SpecularColor, 1.0);
     
     // Final *****************************************************************
-    
-    if (length(v_NormalInterp) == 0.0) {
-        gl_FragColor = vec4(1, 1, 1, 1);
-    } else {
-        gl_FragColor = PointLighting + SpotLighting;
-    }
+    // gl_FragColor = PointLighting + SpotLighting;
+    // gl_FragColor = SpotLighting;
+    gl_FragColor = vec4(0, 1, 1, 1);
+
 }
 `
 
@@ -349,7 +303,7 @@ const shader = {
     u: {
         projectionMatrix: gl.getUniformLocation(shaderProgram, "u_ProjectionMatrix"),
         modelViewMatrix: gl.getUniformLocation(shaderProgram, "u_ModelViewMatrix"),
-        normalMatrix: gl.getUniformLocation(shaderProgram, "u_normalMatrix"),
+        normalMatrix: gl.getUniformLocation(shaderProgram, "u_NormalMatrix"),
         pointLightPosition: gl.getUniformLocation(shaderProgram, "u_PointLightPosition"),
         spotLightPosition: gl.getUniformLocation(shaderProgram, "u_SpotLightPosition"),
         spotLightDirection: gl.getUniformLocation(shaderProgram, "u_LightDirection"),
@@ -357,8 +311,7 @@ const shader = {
         diffuseColor: gl.getUniformLocation(shaderProgram, "u_DiffuseColor"),
         specularColor: gl.getUniformLocation(shaderProgram, "u_SpecularColor"),
         shine: gl.getUniformLocation(shaderProgram, "u_Shine"),
-        limit: gl.getUniformLocation(shaderProgram, "u_Limit"),
-        shape: gl.getUniformLocation(shaderProgram, "u_Shape")
+        limit: gl.getUniformLocation(shaderProgram, "u_Limit")
     }
 }
 
@@ -405,62 +358,48 @@ window.addEventListener("keydown", event => {
 })
 
 const bunnyBuffer = createBunnyBuffer(gl)
-
 const pointLightBuffer = createPointLightBuffer(gl)
 
-const spotLightBuffer = createSpotLightBuffer(gl)
+setUniforms(gl, shader, config)
 
-setUniforms(gl, config)
+const render = (now, cameraTransformMat, mousePosition) => {
+    const theta = now * 0.001
 
-const render = (then, now, transformationMat, lastPosition) => {
-    const theta = now * 0.001 // convert to seconds
-
-    const movement = {
-        x: input.mouse.x - lastPosition.x,
-        y: input.mouse.y - lastPosition.y
-    }
-
-    lastPosition = {
+    const mouseVec = [input.mouse.x - mousePosition.x, input.mouse.y - mousePosition.y, 0]
+    mousePosition = {
         x: input.mouse.x,
         y: input.mouse.y
     }
 
-    if (input.mouse.rightClick && (movement.x != 0 || movement.y != 0)) {
-        const vec = [-movement.y, -movement.x, 0]
-        transformationMat.rotate(getLength(vec) / 100, ...vecNorm(vec))
+    if (input.mouse.rightClick && (mouseVec[0] != 0 || mouseVec[1] != 0)) {
+        cameraTransformMat.rotate(getLength(mouseVec) / 100, ...vecNorm(mouseVec))
     }
 
-    if (input.mouse.leftClick && (movement.x != 0 || movement.y != 0)) {
-        transformationMat.translate(movement.x / 100, -movement.y / 100, 0)
+    if (input.mouse.leftClick && (mouseVec[0] != 0 || mouseVec[1] != 0)) {
+        cameraTransformMat.translate(vecDiv(mouseVec, 100))
     }
 
     if (input.r) {
-        transformationMat = new Matrix()
-        transformationMat.translate(0, 0, -10)
+        cameraTransformMat = new Matrix()
+        cameraTransformMat.translate(config.cameraPosition)
         input.r = false
     }
 
     if (input.wheel) {
-        transformationMat.translate(0, 0, input.wheel)
+        cameraTransformMat.translate(0, 0, input.wheel)
         input.wheel = 0
     }
 
-    setView(gl, shader, transformationMat)
+    setView(gl, cameraTransformMat)
 
     drawBunny(gl, shader, bunnyBuffer)
 
-    const lightRotationMat = createRotationMatrix(theta, 0, 1, 0)
-    const pointLightPosition = vecDotMat(config.pointLightPosition, lightRotationMat.m)
-    drawPointLight(gl, shader, pointLightBuffer, pointLightPosition)
+    // drawPointLight(gl, shader, pointLightBuffer, config.pointLightPosition, theta)
 
-    const spotLightPosition = config.spotLightPosition
-    spotLightPosition[0] += Math.sin(theta) / 50
-    // drawSpotLight(gl, shader, spotLightBuffer, spotLightPosition, config.direction)
-
-    requestAnimationFrame(now => render(then, now, transformationMat, lastPosition))
+    requestAnimationFrame(now => render(now, cameraTransformMat, mousePosition))
 }
 
-const transformationMat = new Matrix()
-transformationMat.translate(...config.cameraPosition)
+const cameraTransformMat = new Matrix()
+cameraTransformMat.translate(config.cameraPosition)
 
-requestAnimationFrame(now => render(0, now, transformationMat, { x: 0, y: 0 }))
+requestAnimationFrame(now => render(now, cameraTransformMat, input.mouse))

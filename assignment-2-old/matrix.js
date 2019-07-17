@@ -117,20 +117,14 @@ class Matrix {
             this.m[3][3] * x
         }
     }
-    transpose() {
-        this.m = t(this.m)
-        return this
-    }
     translate(x, y, z) {
         this.m[0][3] += x
         this.m[1][3] += y
         this.m[2][3] += z
-        return this
     }
     rotate(theta, x, y, z) {
         const rotationMatrix = createRotationMatrix(theta, x, y, z)
         this.m = matDotMat(this.m, rotationMatrix.m)
-        return this
     }
     dot(mat) {
         this.m = matDotMat(this.m, mat.m)
