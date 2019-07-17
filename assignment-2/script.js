@@ -5,10 +5,13 @@ const tan = theta => Math.tan(theta)
 const config = {
     ambient: [0.01, 0.01, 0.005],
     diffuse: [0.83, 0.69, 0.22],
-    specular: [1, 1, 1],
-    shine: 0,
+    specular: [1, 0.9, 0.3],
+    shine: 1,
+    limit: -0.992,
     pointLightPosition: [5, -5, 0, 0],
-    spotLightPosition: [5, -10, -15, 0]
+    spotLightPosition: [0, -1, 0, 0],
+    spotLightDirection: [0, 0, -1, 0],
+    spotLightBound: [-2, 2]
 }
 
 const createProjectionMat = (fovy, aspect, near, far) => {
@@ -75,21 +78,25 @@ const getSurfaceNormal = positions => {
     return normal
 }
 
-const initBuffers = gl => {
-    const lines = getCubeLines()
-    const linesCount = lines.length
-
+const bunnyBuffers = gl => {
+    // Position Buffer
     const positionBuffer = gl.createBuffer()
     gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer)
+
     const vertices = get_vertices()
     vertices.flat()
-    const verticesLength = vertices.flat().length
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices.flat()), gl.STATIC_DRAW)
 
+    // Index Buffer
     const indexBuffer = gl.createBuffer()
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indexBuffer)
+
     const faces = get_faces().map(face => face.map(index => index - 1))
     gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(faces.flat()), gl.STATIC_DRAW)
+
+    // Normals Buffer
+    const normalsBuffer = gl.createBuffer()
+    gl.bindBuffer(gl.ARRAY_BUFFER, normalsBuffer)
 
     const normals = []
     for (let i = 0; i < vertices.length; i++) {
@@ -104,35 +111,42 @@ const initBuffers = gl => {
         })
     })
     normals.map(normal => normalize(normal))
-
-    lines.forEach(() => normals.push([0, 0, 0]))
-
-    const normalsBuffer = gl.createBuffer()
-    gl.bindBuffer(gl.ARRAY_BUFFER, normalsBuffer)
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(normals.flat(2)), gl.STATIC_DRAW)
 
-    // const lightsBuffer = gl.createBuffer()
-    // gl.bindBuffer(gl.ARRAY_BUFFER, lightsBuffer)
-    // gl.bufferData(
-    //     gl.ARRAY_BUFFER,
-    //     new Float32Array(lines.flat().map(coord => coord + 3)),
-    //     gl.STATIC_DRAW
-    // )
-
     return {
-        // lights: lightsBuffer,
-        // lightsLength: linesCount,
         position: positionBuffer,
-        length: verticesLength,
         indices: indexBuffer,
         indicesLength: faces.flat().length,
-        normals: normalsBuffer,
-        normalsLength: normals.flat(2).length
+        normals: normalsBuffer
     }
 }
+
+const pointLightBuffers = gl => {
+    // Position Buffer
+    const positionBuffer = gl.createBuffer()
+    gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer)
+
+    const vertices = getCubeVertices()
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices.flat()), gl.STATIC_DRAW)
+}
+
+const drawPointLight = () => {
+    // create buffers
+    const vertices = cubeVertices.map(vec => vec.map((n, i) => n + coords[i]))
+    const buffer = gl.createBuffer()
+    gl.bindBuffer(gl.ARRAY_BUFFER, buffer)
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices.flat()), gl.STATIC_DRAW)
+
+    // draw
+    gl.vertexAttribPointer(shader.a.position, 3, gl.FLOAT, false, 0, 0)
+    gl.enableVertexAttribArray(shader.a.position)
+
+    gl.drawArrays(gl.TRIANGLES, 0, cubeVertices / 3)
+}
+
 let log = true
 setInterval(() => (log = true), 500)
-const draw = (gl, shader, buffers, transformationMat, pointLightPosition) => {
+const draw = (gl, shader, buffers, transformationMat, pointLightPosition, spotLightPosition) => {
     gl.clearColor(0.0, 0.0, 0.0, 1.0) // Clear to black, fully opaque
     gl.clearDepth(1.0) // Clear everything
     gl.enable(gl.DEPTH_TEST) // Enable depth testing
@@ -151,20 +165,20 @@ const draw = (gl, shader, buffers, transformationMat, pointLightPosition) => {
     modelViewMat.dot(transformationMat)
 
     pointLightPosition = vecDotMat(pointLightPosition, modelViewMat.m)
+    spotLightPosition = vecDotMat(spotLightPosition, modelViewMat.m)
 
-    pointLightPosition[2] += -10
+    const spotLightDirection = vecDotMat(config.spotLightDirection, modelViewMat.m).map(n => -n)
 
     if (log) {
+        console.log(...spotLightDirection)
         log = false
     }
+
+    pointLightPosition[2] += -10
 
     gl.bindBuffer(gl.ARRAY_BUFFER, buffers.position)
     gl.vertexAttribPointer(shader.a.position, 3, gl.FLOAT, false, 0, 0)
     gl.enableVertexAttribArray(shader.a.position)
-
-    // gl.bindBuffer(gl.ARRAY_BUFFER, buffers.lines)
-    // gl.vertexAttribPointer(shader.a.position, 3, gl.FLOAT, false, 0, 0)
-    // gl.enableVertexAttribArray(shader.a.position)
 
     gl.bindBuffer(gl.ARRAY_BUFFER, buffers.normals)
     gl.vertexAttribPointer(shader.a.normal, 3, gl.FLOAT, false, 0, 0)
@@ -180,18 +194,15 @@ const draw = (gl, shader, buffers, transformationMat, pointLightPosition) => {
     gl.uniformMatrix4fv(shader.u.normalMatrix, false, projectionMat.out)
 
     gl.uniform3fv(shader.u.pointLightPosition, new Float32Array(pointLightPosition.slice(0, 3)))
-    gl.uniform3fv(
-        shader.u.spotLightPosition,
-        new Float32Array(config.spotLightPosition.slice(0, 3))
-    )
+    gl.uniform3fv(shader.u.spotLightPosition, new Float32Array(spotLightPosition.slice(0, 3)))
     gl.uniform3fv(shader.u.ambientColor, new Float32Array(config.ambient))
     gl.uniform3fv(shader.u.diffuseColor, new Float32Array(config.diffuse))
     gl.uniform3fv(shader.u.specularColor, new Float32Array(config.specular))
+    gl.uniform3fv(shader.u.spotLightDirection, new Float32Array(spotLightDirection.slice(0, 3)))
     gl.uniform1f(shader.u.shine, config.shine)
+    gl.uniform1f(shader.u.limit, config.limit)
 
     gl.drawElements(gl.TRIANGLES, buffers.indicesLength, gl.UNSIGNED_SHORT, 0)
-
-    // gl.drawArrays(gl.LINES, buffers.length, buffers.lightsLength)
 }
 
 const render = (then, now, theta, transformationMat, lastPosition) => {
@@ -234,7 +245,10 @@ const render = (then, now, theta, transformationMat, lastPosition) => {
 
     const pointLightPosition = vecDotMat(config.pointLightPosition, lightRotationMat.m)
 
-    draw(gl, shader, buffers, transformationMat, pointLightPosition)
+    const spotLightPosition = config.spotLightPosition
+    spotLightPosition[0] += Math.sin(now) / 50
+
+    draw(gl, shader, buffers, transformationMat, pointLightPosition, spotLightPosition)
 
     requestAnimationFrame(now => render(then, now, theta, transformationMat, lastPosition))
 }
@@ -258,8 +272,10 @@ void main() {
 const fragmentShaderSource = `
 precision mediump float;
 
-uniform vec3 u_PointLightPosition, u_SpotLightPosition, u_AmbientColor, u_DiffuseColor, u_SpecularColor;
-uniform float u_Shine;
+uniform vec3 u_PointLightPosition, u_SpotLightPosition, u_AmbientColor, 
+    u_DiffuseColor, u_SpecularColor, u_LightDirection;
+
+uniform float u_Shine, u_Limit;
 
 varying vec3 v_NormalInterp, v_Position;
 
@@ -267,7 +283,7 @@ void main() {
     vec3 Normal = normalize(v_NormalInterp);
     vec3 ViewDirection = normalize(-v_Position);
 
-    // Point
+    // Point *****************************************************************
     vec3 PointLightDirection = normalize(u_PointLightPosition - v_Position);
     vec3 ReflectDirection = reflect(-PointLightDirection, Normal);
 
@@ -275,30 +291,37 @@ void main() {
     float SpecularAngle = 0.0;
     float Specular = 0.0;
 
-    if (Lambertian > 0.0) {
-        float SpecularAngle = max(dot(ReflectDirection, ViewDirection), 0.0);
-        float Specular = pow(SpecularAngle, u_Shine);
+    if (Lambertian > 10.0) {
+        SpecularAngle = max(dot(ReflectDirection, ViewDirection), 0.0);
+        Specular = pow(SpecularAngle, u_Shine);
     }
 
     vec4 PointLighting = vec4(u_AmbientColor + Lambertian * u_DiffuseColor + Specular * u_SpecularColor, 1.0);
 
-    // Spot
-    vec3 SpotLightDirection = normalize(u_SpotLightPosition - v_Position);
+    // Spot *****************************************************************
+    vec3 SpotLightDirection = normalize(-u_SpotLightPosition - v_Position);
     vec3 SpotReflectDirection = reflect(-SpotLightDirection, Normal);
 
-    float SpotLambertian = max(dot(SpotLightDirection, Normal), 0.0);
+    float SpotLambertian = 0.0;
     float SpotSpecularAngle = 0.0;
     float SpotSpecular = 0.0;
 
-    if (SpotLambertian > 0.0) {
-        float SpotSpecularAngle = max(dot(SpotReflectDirection, ViewDirection), 0.0);
-        float SpotSpecular = pow(SpotSpecularAngle, u_Shine);
+    float AngleFromCenter = dot(-SpotLightDirection, -u_LightDirection);
+
+    if (AngleFromCenter < u_Limit) {
+        SpotLambertian = dot(SpotLightDirection, Normal);
+        // if (SpotLambertian > 0.0) {
+        //     SpotSpecular = pow(dot(Normal, SpotReflectDirection), u_Shine);
+        // }
     }
 
     vec4 SpotLighting = vec4(u_AmbientColor + SpotLambertian * u_DiffuseColor + SpotSpecular * u_SpecularColor, 1.0);
     
-    // #phonglyfe
+    // Final *****************************************************************
     gl_FragColor = PointLighting + SpotLighting;
+    // gl_FragColor = SpotLighting;
+    // gl_FragColor = vec4(0, 1, 1, 1);
+
 }
 `
 
@@ -320,10 +343,12 @@ const shader = {
         normalMatrix: gl.getUniformLocation(shaderProgram, "u_NormalMatrix"),
         pointLightPosition: gl.getUniformLocation(shaderProgram, "u_PointLightPosition"),
         spotLightPosition: gl.getUniformLocation(shaderProgram, "u_SpotLightPosition"),
+        spotLightDirection: gl.getUniformLocation(shaderProgram, "u_LightDirection"),
         ambientColor: gl.getUniformLocation(shaderProgram, "u_AmbientColor"),
         diffuseColor: gl.getUniformLocation(shaderProgram, "u_DiffuseColor"),
         specularColor: gl.getUniformLocation(shaderProgram, "u_SpecularColor"),
-        shine: gl.getUniformLocation(shaderProgram, "u_Shine")
+        shine: gl.getUniformLocation(shaderProgram, "u_Shine"),
+        limit: gl.getUniformLocation(shaderProgram, "u_Limit")
     }
 }
 
@@ -369,7 +394,7 @@ window.addEventListener("keydown", event => {
     }
 })
 
-const buffers = initBuffers(gl)
+const buffers = bunnyBuffers(gl)
 
 const transformationMat = new Matrix()
 transformationMat.translate(0, 0, -10)
