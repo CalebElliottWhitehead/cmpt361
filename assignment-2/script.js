@@ -1,6 +1,8 @@
+// helpers
 const sin = theta => Math.sin(theta)
 const cos = theta => Math.cos(theta)
 const tan = theta => Math.tan(theta)
+const toRadians = degrees => (degrees * Math.PI) / 180
 
 const config = {
     ambient: [0.01, 0.01, 0.005],
@@ -8,10 +10,10 @@ const config = {
     specular: [1, 0.9, 0.3],
     shine: 1,
     limit: -0.992,
-    pointLightPosition: [5, -5, 0, 0],
-    spotLightPosition: [0, -1, 0, 0],
-    spotLightDirection: [0, 0, -1, 0],
-    spotLightBound: [-2, 2]
+    pointLightPosition: [5, -5, 0],
+    spotLightPosition: [0, -1, 0],
+    spotLightDirection: [0, 0, -1],
+    cameraPosition: [0, 0, -10]
 }
 
 const createProjectionMat = (fovy, aspect, near, far) => {
@@ -78,13 +80,12 @@ const getSurfaceNormal = positions => {
     return normal
 }
 
-const bunnyBuffers = gl => {
+const createBunnyBuffer = gl => {
     // Position Buffer
     const positionBuffer = gl.createBuffer()
     gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer)
 
     const vertices = get_vertices()
-    vertices.flat()
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices.flat()), gl.STATIC_DRAW)
 
     // Index Buffer
@@ -116,141 +117,100 @@ const bunnyBuffers = gl => {
     return {
         position: positionBuffer,
         indices: indexBuffer,
-        indicesLength: faces.flat().length,
-        normals: normalsBuffer
+        normals: normalsBuffer,
+        length: faces.flat().length
     }
 }
 
-const pointLightBuffers = gl => {
+const createPointLightBuffer = gl => {
     // Position Buffer
     const positionBuffer = gl.createBuffer()
     gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer)
 
     const vertices = getCubeVertices()
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices.flat()), gl.STATIC_DRAW)
-}
 
-const drawPointLight = () => {
-    // create buffers
-    const vertices = cubeVertices.map(vec => vec.map((n, i) => n + coords[i]))
-    const buffer = gl.createBuffer()
-    gl.bindBuffer(gl.ARRAY_BUFFER, buffer)
-    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices.flat()), gl.STATIC_DRAW)
+    // Normals Buffer
+    const normalsBuffer = gl.createBuffer()
+    gl.bindBuffer(gl.ARRAY_BUFFER, normalsBuffer)
 
-    // draw
-    gl.vertexAttribPointer(shader.a.position, 3, gl.FLOAT, false, 0, 0)
-    gl.enableVertexAttribArray(shader.a.position)
+    const normals = vertices.map(() => [0, 0, 0])
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(normals.flat()), gl.STATIC_DRAW)
 
-    gl.drawArrays(gl.TRIANGLES, 0, cubeVertices / 3)
-}
-
-let log = true
-setInterval(() => (log = true), 500)
-const draw = (gl, shader, buffers, transformationMat, pointLightPosition, spotLightPosition) => {
-    gl.clearColor(0.0, 0.0, 0.0, 1.0) // Clear to black, fully opaque
-    gl.clearDepth(1.0) // Clear everything
-    gl.enable(gl.DEPTH_TEST) // Enable depth testing
-    gl.depthFunc(gl.LEQUAL) // Near things obscure far things
-
-    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT)
-    const fieldOfView = (45 * Math.PI) / 180 // in radians
-    const aspect = gl.canvas.clientWidth / gl.canvas.clientHeight
-    const zNear = 0.1
-    const zFar = 100.0
-
-    const projectionMat = createProjectionMat(fieldOfView, aspect, zNear, zFar)
-
-    const modelViewMat = new Matrix()
-
-    modelViewMat.dot(transformationMat)
-
-    pointLightPosition = vecDotMat(pointLightPosition, modelViewMat.m)
-    spotLightPosition = vecDotMat(spotLightPosition, modelViewMat.m)
-
-    const spotLightDirection = vecDotMat(config.spotLightDirection, modelViewMat.m).map(n => -n)
-
-    if (log) {
-        console.log(...spotLightDirection)
-        log = false
+    return {
+        position: positionBuffer,
+        normals: normalsBuffer,
+        length: vertices.length
     }
+}
 
-    pointLightPosition[2] += -10
+const createSpotLightBuffer = gl => {}
 
-    gl.bindBuffer(gl.ARRAY_BUFFER, buffers.position)
+const drawBunny = (gl, shader, buffer) => {
+    gl.bindBuffer(gl.ARRAY_BUFFER, buffer.position)
     gl.vertexAttribPointer(shader.a.position, 3, gl.FLOAT, false, 0, 0)
     gl.enableVertexAttribArray(shader.a.position)
 
-    gl.bindBuffer(gl.ARRAY_BUFFER, buffers.normals)
+    gl.bindBuffer(gl.ARRAY_BUFFER, buffer.normals)
     gl.vertexAttribPointer(shader.a.normal, 3, gl.FLOAT, false, 0, 0)
     gl.enableVertexAttribArray(shader.a.normal)
 
-    // Tell WebGL which indices to use to index the vertices
-    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, buffers.indices)
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, buffer.indices)
 
-    gl.useProgram(shader.program)
+    gl.drawElements(gl.TRIANGLES, buffer.length, gl.UNSIGNED_SHORT, 0)
+}
+
+const drawPointLight = (gl, shader, buffer, startPosition, theta) => {
+    const rotationMat = createRotationMatrix(theta, 0, 1, 0)
+    const position = vecDotMat([...startPosition, 0], rotationMat.m)
+    gl.uniform3fv(shader.u.pointLightPosition, new Float32Array(position.slice(0, 3)))
+
+    gl.bindBuffer(gl.ARRAY_BUFFER, buffer.position)
+    gl.vertexAttribPointer(shader.a.position, 3, gl.FLOAT, false, 0, 0)
+    gl.enableVertexAttribArray(shader.a.position)
+
+    gl.bindBuffer(gl.ARRAY_BUFFER, buffer.normals)
+    gl.vertexAttribPointer(shader.a.normal, 3, gl.FLOAT, false, 0, 0)
+    gl.enableVertexAttribArray(shader.a.normal)
+
+    gl.drawArrays(gl.TRIANGLES, 0, buffer.length)
+}
+
+const drawSpotLight = (gl, shader, buffer, startPosition, theta, direction) => {
+    gl.uniform3fv(shader.u.spotLightPosition, new Float32Array(spotLightPosition.slice(0, 3)))
+
+    const spotLightPosition = config.spotLightPosition
+    spotLightPosition[0] += Math.sin(now) / 50
+}
+
+const setView = (gl, cameraTransformMat) => {
+    gl.clearColor(0.0, 0.0, 0.0, 1.0)
+    gl.clearDepth(1.0)
+    gl.enable(gl.DEPTH_TEST) // Enable depth testing
+    gl.depthFunc(gl.LEQUAL) // Near things obscure far things
+    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT)
+
+    const fieldOfView = toRadians(45)
+    const aspect = gl.canvas.clientWidth / gl.canvas.clientHeight
+    const near = 0.1
+    const far = 100.0
+    const projectionMat = createProjectionMat(fieldOfView, aspect, near, far)
+
+    const modelViewMat = new Matrix()
+    modelViewMat.dot(cameraTransformMat)
 
     gl.uniformMatrix4fv(shader.u.projectionMatrix, false, projectionMat.out)
     gl.uniformMatrix4fv(shader.u.modelViewMatrix, false, modelViewMat.out)
     gl.uniformMatrix4fv(shader.u.normalMatrix, false, projectionMat.out)
+}
 
-    gl.uniform3fv(shader.u.pointLightPosition, new Float32Array(pointLightPosition.slice(0, 3)))
-    gl.uniform3fv(shader.u.spotLightPosition, new Float32Array(spotLightPosition.slice(0, 3)))
+const setUniforms = (gl, shader, config) => {
+    gl.uniform3fv(shader.u.spotLightDirection, new Float32Array(config.spotLightDirection))
     gl.uniform3fv(shader.u.ambientColor, new Float32Array(config.ambient))
     gl.uniform3fv(shader.u.diffuseColor, new Float32Array(config.diffuse))
     gl.uniform3fv(shader.u.specularColor, new Float32Array(config.specular))
-    gl.uniform3fv(shader.u.spotLightDirection, new Float32Array(spotLightDirection.slice(0, 3)))
     gl.uniform1f(shader.u.shine, config.shine)
     gl.uniform1f(shader.u.limit, config.limit)
-
-    gl.drawElements(gl.TRIANGLES, buffers.indicesLength, gl.UNSIGNED_SHORT, 0)
-}
-
-const render = (then, now, theta, transformationMat, lastPosition) => {
-    now *= 0.001 // convert to seconds
-    const delta = now - then
-    then = now
-    theta += delta
-
-    const movement = {
-        x: input.mouse.x - lastPosition.x,
-        y: input.mouse.y - lastPosition.y
-    }
-
-    lastPosition = {
-        x: input.mouse.x,
-        y: input.mouse.y
-    }
-
-    if (input.mouse.rightClick && (movement.x != 0 || movement.y != 0)) {
-        const vec = [-movement.y, -movement.x, 0]
-        transformationMat.rotate(getLength(vec) / 100, ...vecNorm(vec))
-    }
-
-    if (input.mouse.leftClick && (movement.x != 0 || movement.y != 0)) {
-        transformationMat.translate(movement.x / 100, -movement.y / 100, 0)
-    }
-
-    if (input.r) {
-        transformationMat = new Matrix()
-        transformationMat.translate(0, 0, -10)
-        input.r = false
-    }
-
-    if (input.wheel) {
-        transformationMat.translate(0, 0, input.wheel)
-        input.wheel = 0
-    }
-
-    const lightRotationMat = createRotationMatrix(theta, 0, 1, 0)
-
-    const pointLightPosition = vecDotMat(config.pointLightPosition, lightRotationMat.m)
-
-    const spotLightPosition = config.spotLightPosition
-    spotLightPosition[0] += Math.sin(now) / 50
-
-    draw(gl, shader, buffers, transformationMat, pointLightPosition, spotLightPosition)
-
-    requestAnimationFrame(now => render(then, now, theta, transformationMat, lastPosition))
 }
 
 // new source
@@ -318,9 +278,9 @@ void main() {
     vec4 SpotLighting = vec4(u_AmbientColor + SpotLambertian * u_DiffuseColor + SpotSpecular * u_SpecularColor, 1.0);
     
     // Final *****************************************************************
-    gl_FragColor = PointLighting + SpotLighting;
+    // gl_FragColor = PointLighting + SpotLighting;
     // gl_FragColor = SpotLighting;
-    // gl_FragColor = vec4(0, 1, 1, 1);
+    gl_FragColor = vec4(0, 1, 1, 1);
 
 }
 `
@@ -330,6 +290,7 @@ const gl = canvas.getContext("webgl") || canvas.getContext("experimental-webgl")
 if (!gl) alert("Unable to initialize WebGL. Your browser or machine may not support it.")
 
 const shaderProgram = createShaderProgram(gl, vertexShaderSource, fragmentShaderSource)
+gl.useProgram(shaderProgram)
 
 const shader = {
     program: shaderProgram,
@@ -394,9 +355,49 @@ window.addEventListener("keydown", event => {
     }
 })
 
-const buffers = bunnyBuffers(gl)
+const bunnyBuffer = createBunnyBuffer(gl)
+const pointLightBuffer = createPointLightBuffer(gl)
 
-const transformationMat = new Matrix()
-transformationMat.translate(0, 0, -10)
+setUniforms(gl, shader, config)
 
-requestAnimationFrame(now => render(0, now, 0, transformationMat, { x: 0, y: 0 }))
+const render = (now, cameraTransformMat, mousePosition) => {
+    const theta = now * 0.001
+
+    const mouseVec = [input.mouse.x - mousePosition.x, input.mouse.y - mousePosition.y, 0]
+    mousePosition = {
+        x: input.mouse.x,
+        y: input.mouse.y
+    }
+
+    if (input.mouse.rightClick && (mouseVec[0] != 0 || mouseVec[1] != 0)) {
+        cameraTransformMat.rotate(getLength(mouseVec) / 100, ...vecNorm(mouseVec))
+    }
+
+    if (input.mouse.leftClick && (mouseVec[0] != 0 || mouseVec[1] != 0)) {
+        cameraTransformMat.translate(vecDiv(mouseVec, 100))
+    }
+
+    if (input.r) {
+        cameraTransformMat = new Matrix()
+        cameraTransformMat.translate(config.cameraPosition)
+        input.r = false
+    }
+
+    if (input.wheel) {
+        cameraTransformMat.translate(0, 0, input.wheel)
+        input.wheel = 0
+    }
+
+    setView(gl, cameraTransformMat)
+
+    drawBunny(gl, shader, bunnyBuffer)
+
+    // drawPointLight(gl, shader, pointLightBuffer, config.pointLightPosition, theta)
+
+    requestAnimationFrame(now => render(now, cameraTransformMat, mousePosition))
+}
+
+const cameraTransformMat = new Matrix()
+cameraTransformMat.translate(config.cameraPosition)
+
+requestAnimationFrame(now => render(now, cameraTransformMat, input.mouse))
