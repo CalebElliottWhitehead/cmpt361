@@ -1,16 +1,217 @@
 const config = {
-    ambient: [0.01, 0.01, 0.005],
+    ambient: [0.083, 0.069, 0.022],
     diffuse: [0.83, 0.69, 0.22],
-    specular: [1, 0.9, 0.3],
-    shine: 1,
+    specular: [0.9, 0.9, 0.3],
+    shine: 80,
     pointLightPosition: [5, 5, 0, 0],
     spotLight: {
         position: [0, 4, 2],
-        direction: [0, -2, -2],
+        direction: [0, -4, -2],
         movementBound: [-2, 2],
-        limit: 0.5
+        limit: -1.1
     },
     cameraPosition: [0, 0, -15]
+}
+
+// prettier-ignore
+const getCubeVertices = () => [
+    [-1.0, -1.0,  1.0],
+    [ 1.0, -1.0,  1.0],
+    [ 1.0,  1.0,  1.0],
+    [-1.0,  1.0,  1.0],
+    [-1.0, -1.0,  1.0],
+    [-1.0, -1.0, -1.0],
+    [-1.0,  1.0, -1.0],
+    [ 1.0,  1.0, -1.0],
+    [ 1.0, -1.0, -1.0],
+    [ 1.0,  1.0, -1.0],
+    [-1.0,  1.0, -1.0],
+    [-1.0,  1.0,  1.0],
+    [ 1.0,  1.0,  1.0],
+    [ 1.0,  1.0, -1.0],
+    [ 1.0, -1.0, -1.0],
+    [-1.0, -1.0, -1.0],
+    [ 1.0, -1.0, -1.0],
+    [ 1.0, -1.0,  1.0],
+    [-1.0, -1.0,  1.0],
+    [ 1.0, -1.0,  1.0],
+    [ 1.0, -1.0, -1.0],
+    [ 1.0,  1.0, -1.0],
+    [ 1.0,  1.0,  1.0],
+    [ 1.0, -1.0,  1.0],
+    [ 1.0, -1.0, -1.0],
+    [-1.0, -1.0, -1.0],
+    [-1.0, -1.0,  1.0],
+    [-1.0,  1.0,  1.0],
+    [-1.0,  1.0, -1.0],
+  ]
+
+const getConeVertices = () => [
+    [0, 1, -1],
+    [0.7, 0.7, -1],
+    [1, 0, -1],
+    [0.7, -0.7, -1],
+    [0, -1, -1],
+    [-0.7, -0.7, -1],
+    [-1, 0, -1],
+    [-0.7, 0.7, -1],
+
+    [0, 1, -1],
+    [0, 0, 1],
+    [0.7, 0.7, -1],
+    [0, 0, 1],
+    [1, 0, -1],
+    [0, 0, 1],
+    [0.7, -0.7, -1],
+    [0, 0, 1],
+    [0, -1, -1],
+    [0, 0, 1],
+    [-0.7, -0.7, -1],
+    [0, 0, 1],
+    [-1, 0, -1],
+    [0, 0, 1],
+    [-0.7, 0.7, -1],
+    [0, 0, 1]
+]
+
+const getDepth = arr => (typeof arr === "number" ? 0 : getDepth(arr[0]) + 1)
+
+const isNum = num => getDepth(num) <= 0
+
+const isVec = vec => getDepth(vec) === 1
+
+const isMat = mat => getDepth(mat) === 2
+
+const stringifyMat = mat => "[" + mat.map(row => row.join(", ")).join("]\n[") + "]"
+
+const stringifyVec = vec => "[" + vec.join(", ") + "]"
+
+const stringify = mat => (isVec(mat) ? stringifyVec(mat) : stringifyMat(mat))
+
+const dim = mat => (isMat(mat) ? mat[0].length : mat.length)
+
+const vec = [5, 6]
+
+const combineVecs = (aVec, bVec) => aVec.map((a, i) => a + bVec[i])
+
+const t = mat => mat.map((row, rowNum) => row.map((_, colNum) => mat[colNum][rowNum]))
+
+const vecDotVec = (aVec, bVec) => aVec.reduce((acc, cur, i) => acc + cur * bVec[i], 0)
+
+const vecDotMat = (vec, mat) => mat.map(row => vecDotVec(row, vec))
+
+const matDotMat = (bMat, aMat) => t(t(aMat).map(row => vecDotMat(row, bMat)))
+
+const getLength = vec => Math.sqrt(vec.reduce((acc, cur) => acc + cur * cur, 0))
+
+const vecDiv = (vec, den) => vec.map(e => e / den)
+
+const matDiv = (mat, den) => mat.map(row => vecDiv(row, den))
+
+const vecNorm = vec => vecDiv(vec, getLength(vec))
+
+// prettier-ignore
+const reduceDim = (mat, row0, col0) => mat
+    .slice(row0, row0 + mat.length - 1)
+    .map(row => row.slice(col0, col0 + row.length - 1))
+
+// prettier-ignore
+const removeRowCol = (mat, rowIndex = 0, colIndex = 0) => mat
+    .filter((_, i) => i != rowIndex)
+    .map(row => row.filter((_, i) => i != colIndex))
+
+const adjSign = (rowIndex, colIndex = 0) => 1 - ((rowIndex + (colIndex % 2)) % 2) * 2
+
+const determinant = mat => {
+    if (dim(mat) <= 2) return mat[0][0] * mat[1][1] - mat[0][1] * mat[1][0]
+    return mat[0].reduce(
+        (acc, cur, i) => acc + adjSign(i) * cur * determinant(removeRowCol(mat, 0, i)),
+        0
+    )
+}
+
+// prettier-ignore
+const adj = mat =>
+    mat.map((row, rowIndex) =>
+        row.map((e, colIndex) =>
+            e * adjSign(rowIndex, colIndex) * determinant(removeRowCol(rowIndex, colIndex))
+        )
+    )
+
+const inv = mat => matDiv(adj(mat), determinant(mat))
+
+const identity = dim => {
+    const mat = new Array(dim)
+    for (let i = 0; i < dim; i++) {
+        mat[i] = new Array(dim).fill(0)
+        mat[i][i] = 1
+    }
+    return mat
+}
+
+class Matrix {
+    constructor() {
+        this.dim = 4
+        this.m = new Array(this.dim)
+        for (let i = 0; i < this.dim; i++) {
+            this.m[i] = new Array(this.dim).fill(0)
+            this.m[i][i] = 1
+        }
+        return this
+    }
+    scale(x, y, z) {
+        if (y !== undefined) {
+            this.m[0][0] * x
+            this.m[1][1] * y
+            this.m[2][2] * z
+        } else {
+            this.m[3][3] * x
+        }
+    }
+    transpose() {
+        this.m = t(this.m)
+        return this
+    }
+    translate(x, y, z) {
+        this.m[0][3] += x
+        this.m[1][3] += y
+        this.m[2][3] += z
+        return this
+    }
+    rotate(theta, x, y, z) {
+        const rotationMatrix = createRotationMatrix(theta, x, y, z)
+        this.m = matDotMat(this.m, rotationMatrix.m)
+        return this
+    }
+    dot(mat) {
+        this.m = matDotMat(this.m, mat.m)
+        return this
+    }
+    set t(vec) {
+        this.m[0][3] = vec[0]
+        this.m[1][3] = vec[1]
+        this.m[2][3] = vec[2]
+    }
+    set r(mat) {
+        this.m = [
+            [...mat[0], this.m[0][3]],
+            [...mat[1], this.m[1][3]],
+            [...mat[2], this.m[2][3]],
+            this.m[3]
+        ]
+    }
+    get r() {
+        return reduceDim(this.m, 0, 0)
+    }
+    get det() {
+        return determinant(reduceDim(this.m))
+    }
+    get out() {
+        return new Float32Array(t(this.m).flat())
+    }
+    get string() {
+        return "[" + this.m.map(row => row.join(", ")).join("]\n[") + "]"
+    }
 }
 
 const sin = theta => Math.sin(theta)
@@ -129,7 +330,7 @@ const createPointLightBuffer = gl => {
     const positionBuffer = gl.createBuffer()
     gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer)
 
-    const vertices = getCubeVertices()
+    const vertices = getCubeVertices().map(vertex => vertex.map(n => n / 4))
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices.flat()), gl.STATIC_DRAW)
 
     // Normals Buffer
@@ -156,7 +357,10 @@ const createSpotLightBuffer = gl => {
     const positionBuffer = gl.createBuffer()
     gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer)
 
+    const rotationMatrix = createRotationMatrix(1, 1, 0, 0)
     const vertices = getConeVertices()
+        .map(vertex => vecDotMat([...vertex, 1], rotationMatrix.m).slice(0, 3))
+        .map(vertex => vertex.map(n => n / 4))
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices.flat()), gl.STATIC_DRAW)
 
     // Normals Buffer
@@ -168,7 +372,7 @@ const createSpotLightBuffer = gl => {
     for (let i = 0; i < vertices.length; i += 3) {
         surfaces.push([vertices[i], vertices[i + 1], vertices[i + 2]])
     }
-    const normals = surfaces.map(surface => [[0, 0, 0], [0, 0, 0], [0, 0, 0]])
+    const normals = surfaces.map(() => [[0, 0, 0], [0, 0, 0], [0, 0, 0]])
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(normals.flat(2)), gl.STATIC_DRAW)
 
     return {
@@ -210,11 +414,11 @@ const drawPointLight = (gl, shader, buffer, position) => {
     gl.drawArrays(gl.LINE_STRIP, 0, buffer.length)
 }
 
-const drawSpotLight = (gl, shader, buffer, config) => {
+const drawSpotLight = (gl, shader, buffer, config, position) => {
     gl.uniform1f(shader.u.shape, 2)
-    gl.uniform3fv(shader.u.spotLightPosition, new Float32Array(config.position))
+    gl.uniform3fv(shader.u.spotLightPosition, new Float32Array(position))
     gl.uniform3fv(shader.u.spotLightDirection, new Float32Array(config.direction))
-    gl.uniform1f(shader.u.limit, config.limit)
+    gl.uniform1f(shader.u.limit, cos(config.limit))
 
     gl.bindBuffer(gl.ARRAY_BUFFER, buffer.position)
     gl.vertexAttribPointer(shader.a.position, 3, gl.FLOAT, false, 0, 0)
@@ -310,11 +514,13 @@ void main() { // ***************************************************************
     // Point *****************************************************************
     vec3 PointLightDirection = normalize(vec3(u_ProjectionMatrix * vec4(u_PointLightPosition, 0.0)) - v_Position);
     vec3 ReflectDirection = reflect(PointLightDirection, Normal);
-    float Lambertian = max(dot(PointLightDirection, Normal), 0.0);
+
+    float Lambertian = dot(Normal, PointLightDirection);
     float SpecularAngle = 0.0;
     float Specular = 0.0;
-    if (Lambertian > 2.0) {
-        SpecularAngle = max(dot(ReflectDirection, ViewDirection), 0.0);
+
+    if (Lambertian > 0.0) {
+        SpecularAngle = dot(Normal, PointLightDirection);
         Specular = pow(SpecularAngle, u_Shine);
     }
     vec4 PointLighting = vec4(u_AmbientColor + Lambertian * u_DiffuseColor + Specular * u_SpecularColor, 1.0);
@@ -323,18 +529,19 @@ void main() { // ***************************************************************
 
     vec3 SpotLightDirection = normalize(vec3(u_ProjectionMatrix * vec4(u_SpotLightPosition, 0.0)) - v_Position);
     vec3 SpotReflectDirection = reflect(SpotLightDirection, Normal);
+
     float SpotLambertian = 0.0;
     float SpotSpecularAngle = 0.0;
     float SpotSpecular = 0.0;
 
-    float DotFromDirection = dot(v_LightDirection, -SpotLightDirection);
+    float DotFromDirection = dot(SpotLightDirection, -normalize(v_LightDirection));
+
     if (DotFromDirection < u_Limit) {
         SpotLambertian = max(dot(SpotLightDirection, Normal), 0.0);
-        // if (Lambertian > 2.0) {
-        //     SpotReflectDirection = reflect(SpotLightDirection, Normal);
-        //     SpotSpecularAngle = dot(SpotReflectDirection, ViewDirection);
-        //     SpotSpecular = pow(SpotSpecularAngle, u_Shine);
-        // }
+        if (Lambertian > 0.0) {
+            SpotSpecularAngle = dot(Normal, SpotLightDirection);
+            SpotSpecular = pow(SpotSpecularAngle, u_Shine);
+        }
     }
     vec4 SpotLighting = vec4(u_AmbientColor + SpotLambertian * u_DiffuseColor + SpotSpecular * u_SpecularColor, 1.0);
     
@@ -343,8 +550,8 @@ void main() { // ***************************************************************
     if (1.0 <= u_Shape) {
         gl_FragColor = vec4(1.0, 1.0, 1.0, 1.0);
     } else {
-        // gl_FragColor = PointLighting + SpotLighting;
-        gl_FragColor = SpotLighting;
+        gl_FragColor = PointLighting;
+        // gl_FragColor = SpotLighting + PointLighting;
     }
 }
 `
@@ -386,7 +593,9 @@ const input = {
         y: 0
     },
     wheel: 0,
-    r: false
+    r: false,
+    p: false,
+    s: false
 }
 
 const leftClick = isClicked => (input.mouse.leftClick = isClicked)
@@ -420,6 +629,18 @@ window.addEventListener("keydown", event => {
     }
 })
 
+window.addEventListener("keydown", event => {
+    if (event.key === "p") {
+        input.p = true
+    }
+})
+
+window.addEventListener("keydown", event => {
+    if (event.key === "s") {
+        input.s = true
+    }
+})
+
 const bunnyBuffer = createBunnyBuffer(gl)
 
 const pointLightBuffer = createPointLightBuffer(gl)
@@ -428,9 +649,16 @@ const spotLightBuffer = createSpotLightBuffer(gl)
 
 setUniforms(gl, config)
 
-const render = (then, now, transformationMat, lastPosition) => {
-    const theta = now * 0.001 // convert to seconds
-
+let isSpinning = true
+let isPanning = true
+const render = (then, now, theta, phi, transformationMat, lastPosition) => {
+    if (isSpinning) {
+        theta += (now - then) * 0.001
+    }
+    if (isPanning) {
+        phi += (now - then) * 0.001
+    }
+    then = now
     const movement = {
         x: input.mouse.x - lastPosition.x,
         y: input.mouse.y - lastPosition.y
@@ -465,18 +693,28 @@ const render = (then, now, transformationMat, lastPosition) => {
 
     drawBunny(gl, shader, bunnyBuffer)
 
+    if (input.p) {
+        isSpinning = !isSpinning
+        input.p = false
+    }
+
     const lightRotationMat = createRotationMatrix(theta, 0, 1, 0)
     const pointLightPosition = vecDotMat(config.pointLightPosition, lightRotationMat.m)
     drawPointLight(gl, shader, pointLightBuffer, pointLightPosition)
 
-    const spotLightPosition = config.spotLight.position
-    spotLightPosition[0] += Math.sin(theta) / 50
-    drawSpotLight(gl, shader, spotLightBuffer, config.spotLight)
+    if (input.s) {
+        isPanning = !isPanning
+        input.s = false
+    }
 
-    requestAnimationFrame(now => render(then, now, transformationMat, lastPosition))
+    const spotLightPosition = config.spotLight.position.slice()
+    spotLightPosition[0] += Math.sin(phi * 0.7) * 3
+    drawSpotLight(gl, shader, spotLightBuffer, config.spotLight, spotLightPosition)
+
+    requestAnimationFrame(now => render(then, now, theta, phi, transformationMat, lastPosition))
 }
 
 const transformationMat = new Matrix()
 transformationMat.translate(...config.cameraPosition)
 
-requestAnimationFrame(now => render(0, now, transformationMat, { x: 0, y: 0 }))
+requestAnimationFrame(now => render(0, now, 0, 0, transformationMat, { x: 0, y: 0 }))
