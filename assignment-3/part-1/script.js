@@ -40,111 +40,132 @@ const shader = {
     }
 }
 
-// const input = {
-//     mouse: {
-//         leftClick: false,
-//         rightClick: false,
-//         x: 0,
-//         y: 0
-//     },
-//     wheel: 0,
-//     r: false,
-//     p: false,
-//     s: false
-// }
+const input = {
+    mouse: {
+        leftClick: false,
+        rightClick: false,
+        x: 0,
+        y: 0
+    },
+    wheel: 0,
+    r: false,
+    p: false,
+    s: false
+}
 
-// const leftClick = isClicked => (input.mouse.leftClick = isClicked)
+const leftClick = isClicked => (input.mouse.leftClick = isClicked)
 
-// const rightClick = isClicked => (input.mouse.rightClick = isClicked)
+const rightClick = isClicked => (input.mouse.rightClick = isClicked)
 
-// window.addEventListener("contextmenu", event => event.preventDefault())
+window.addEventListener("contextmenu", event => event.preventDefault())
 
-// window.addEventListener("mousedown", event => {
-//     if (event.button === 0) leftClick(true)
-//     if (event.button === 2) rightClick(true)
-// })
+window.addEventListener("mousedown", event => {
+    if (event.button === 0) leftClick(true)
+    if (event.button === 2) rightClick(true)
+})
 
-// window.addEventListener("mousemove", event => {
-//     input.mouse.x = event.clientX
-//     input.mouse.y = event.clientY
-// })
+window.addEventListener("mousemove", event => {
+    input.mouse.x = event.clientX
+    input.mouse.y = event.clientY
+})
 
-// window.addEventListener("mouseup", event => {
-//     if (event.button === 0) leftClick(false)
-//     if (event.button === 2) rightClick(false)
-// })
+window.addEventListener("mouseup", event => {
+    if (event.button === 0) leftClick(false)
+    if (event.button === 2) rightClick(false)
+})
 
-// window.addEventListener("wheel", event => {
-//     input.wheel = event.deltaY
-// })
+window.addEventListener("wheel", event => {
+    input.wheel = event.deltaY
+})
 
-// window.addEventListener("keydown", event => {
-//     if (event.key === "r") {
-//         input.r = true
-//     }
-// })
+window.addEventListener("keydown", event => {
+    if (event.key === "r") {
+        input.r = true
+    }
+})
 
-// window.addEventListener("keydown", event => {
-//     if (event.key === "p") {
-//         input.p = true
-//     }
-// })
+window.addEventListener("keydown", event => {
+    if (event.key === "p") {
+        input.p = true
+    }
+})
 
-// window.addEventListener("keydown", event => {
-//     if (event.key === "s") {
-//         input.s = true
-//     }
-// })
+window.addEventListener("keydown", event => {
+    if (event.key === "s") {
+        input.s = true
+    }
+})
 
-// const render = (now, model) => {
-// const movement = {
-//     x: input.mouse.x - lastPosition.x,
-//     y: input.mouse.y - lastPosition.y
-// }
+const render = (now, model, lastPosition, camera) => {
+    const movement = {
+        x: input.mouse.x - lastPosition.x,
+        y: input.mouse.y - lastPosition.y
+    }
 
-// lastPosition = {
-//     x: input.mouse.x,
-//     y: input.mouse.y
-// }
+    lastPosition = {
+        x: input.mouse.x,
+        y: input.mouse.y
+    }
 
-// if (input.mouse.rightClick && (movement.x != 0 || movement.y != 0)) {
-//     const vec = [-movement.y, -movement.x, 0]
-//     transformationMat.rotate(getLength(vec) / 100, ...vecNorm(vec))
-// }
+    const fieldOfView = (45 * Math.PI) / 180 // in radians
+    const aspect = gl.canvas.clientWidth / gl.canvas.clientHeight
+    const near = 0.1
+    const far = 100.0
+    const projectionMatrix = create.matrix.projection(fieldOfView, aspect, near, far)
+    gl.uniformMatrix4fv(shader.u.projectionMatrix, false, projectionMatrix.out)
 
-// if (input.mouse.leftClick && (movement.x != 0 || movement.y != 0)) {
-//     transformationMat.translate(movement.x / 100, -movement.y / 100, 0)
-// }
+    const cameraTransform = create.matrix.translation(0, 0, -20)
+    camera.transform(cameraTransform)
 
-// if (input.r) {
-//     transformationMat = new Matrix()
-//     transformationMat.translate(0, 0, -10)
-//     input.r = false
-// }
+    camera.reset(gl)
+    camera.setView(gl)
 
-// if (input.wheel) {
-//     transformationMat.translate(0, 0, input.wheel)
-//     input.wheel = 0
-// }
+    bunny.draw(gl, shader)
 
-//     requestAnimationFrame(now => render(now))
-// }
+    if (input.mouse.rightClick && (movement.x != 0 || movement.y != 0)) {
+        const vec = [-movement.y, -movement.x, 0]
+        const cameraRotationMatrix = create.matrix.rotation.axis(
+            vector.length(vec) / 100,
+            ...vector.normalize(vec)
+        )
+        camera.transform(cameraRotationMatrix)
+    }
 
-// requestAnimationFrame(now => render(now, bunny))
+    if (input.mouse.leftClick && (movement.x != 0 || movement.y != 0)) {
+        transformationMat.translate(movement.x / 100, -movement.y / 100, 0)
+    }
 
-const fieldOfView = (45 * Math.PI) / 180 // in radians
-const aspect = gl.canvas.clientWidth / gl.canvas.clientHeight
-const near = 0.1
-const far = 100.0
-let projectionMatrix = create.matrix.projection(fieldOfView, aspect, near, far)
-const cameraTransform = create.matrix.translation(0, 0, -20)
-projectionMatrix = projectionMatrix.dot(cameraTransform)
-gl.uniformMatrix4fv(shader.u.projectionMatrix, false, projectionMatrix.out)
+    if (input.r) {
+        transformationMat = new Matrix()
+        transformationMat.translate(0, 0, -10)
+        input.r = false
+    }
+
+    if (input.wheel) {
+        transformationMat.translate(0, 0, input.wheel)
+        input.wheel = 0
+    }
+
+    requestAnimationFrame(now => render(now, model, lastPosition, camera))
+}
 
 const camera = new Camera(shader.u.viewMatrix)
-
-camera.reset(gl)
-camera.setView(gl)
+const cameraTransform = create.matrix.translation(0, 0, -20)
+camera.transform(cameraTransform)
 
 const bunny = new Model(gl, getVertices(), getFaces())
-bunny.draw(gl, shader)
+
+requestAnimationFrame(now => render(now, bunny, { x: 0, y: 0 }, camera))
+
+// const createProjectionMat = (fovy, aspect, near, far) => {
+//     const f = 1.0 / Math.tan(fovy / 2)
+//     const d = far - near
+//     const result = new Matrix()
+//     result.m[0][0] = f / aspect
+//     result.m[1][1] = f
+//     result.m[2][2] = -(near + far) / d
+//     result.m[2][3] = (-2 * near * far) / d
+//     result.m[3][2] = -1
+//     result.m[3][3] = 0
+//     return result
+// }
