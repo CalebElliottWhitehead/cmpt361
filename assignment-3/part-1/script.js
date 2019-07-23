@@ -6,9 +6,8 @@ attribute vec3 a_Position, a_Normal;
 uniform mat4 u_ModelMatrix, u_ViewMatrix, u_ProjectionMatrix;
 
 void main() {
-    mat4 MVP = u_ModelMatrix * u_ViewMatrix * u_ProjectionMatrix;
     vec4 Position = vec4(a_Position, 1.0);
-    gl_Position = MVP * Position;
+    gl_Position = u_ProjectionMatrix * u_ViewMatrix * Position;
 }
 `
 
@@ -96,6 +95,8 @@ window.addEventListener("keydown", event => {
     }
 })
 
+let log = true
+
 const render = (now, model, lastPosition, camera) => {
     const movement = {
         x: input.mouse.x - lastPosition.x,
@@ -112,10 +113,11 @@ const render = (now, model, lastPosition, camera) => {
     const near = 0.1
     const far = 100.0
     const projectionMatrix = create.matrix.projection(fieldOfView, aspect, near, far)
-    gl.uniformMatrix4fv(shader.u.projectionMatrix, false, projectionMatrix.out)
+    const projectionMatrix2 = createProjectionMat(fieldOfView, aspect, near, far)
+    gl.uniformMatrix4fv(shader.u.projectionMatrix, false, projectionMatrix2.out)
 
-    const cameraTransform = create.matrix.translation(0, 0, -20)
-    camera.transform(cameraTransform)
+    // const cameraTransform = create.matrix.translation(0, 0, -20)
+    // camera.transform(cameraTransform)
 
     camera.reset(gl)
     camera.setView(gl)
@@ -145,27 +147,34 @@ const render = (now, model, lastPosition, camera) => {
         transformationMat.translate(0, 0, input.wheel)
         input.wheel = 0
     }
+    if (log) {
+        console.log(projectionMatrix.string)
+        console.log(projectionMatrix2.string)
+        log = false
+    }
 
     requestAnimationFrame(now => render(now, model, lastPosition, camera))
 }
 
 const camera = new Camera(shader.u.viewMatrix)
-const cameraTransform = create.matrix.translation(0, 0, -20)
+const cameraTransform = create.matrix.translation(20, 0, -20)
 camera.transform(cameraTransform)
+
+console.log(camera.viewMatrix.string)
 
 const bunny = new Model(gl, getVertices(), getFaces())
 
-requestAnimationFrame(now => render(now, bunny, { x: 0, y: 0 }, camera))
+const createProjectionMat = (fovy, aspect, near, far) => {
+    const f = 1.0 / Math.tan(fovy / 2)
+    const d = far - near
+    const result = new Matrix()
+    result.m[0][0] = f / aspect
+    result.m[1][1] = f
+    result.m[2][2] = -(near + far) / d
+    result.m[2][3] = (-2 * near * far) / d
+    result.m[3][2] = -1
+    result.m[3][3] = 0
+    return result
+}
 
-// const createProjectionMat = (fovy, aspect, near, far) => {
-//     const f = 1.0 / Math.tan(fovy / 2)
-//     const d = far - near
-//     const result = new Matrix()
-//     result.m[0][0] = f / aspect
-//     result.m[1][1] = f
-//     result.m[2][2] = -(near + far) / d
-//     result.m[2][3] = (-2 * near * far) / d
-//     result.m[3][2] = -1
-//     result.m[3][3] = 0
-//     return result
-// }
+requestAnimationFrame(now => render(now, bunny, { x: 0, y: 0 }, camera))
