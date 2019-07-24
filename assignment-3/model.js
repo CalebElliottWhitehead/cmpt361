@@ -1,8 +1,9 @@
-class Model {
+class Model extends Entity {
     constructor(gl, vertices, faces, color = [0.8, 0.8, 0.8, 1]) {
+        super(new Matrix())
+
         this.size = faces.flat().length
         this.color = color
-        this.transformationMatrix = new Matrix()
 
         this.positionBuffer = gl.createBuffer()
         gl.bindBuffer(gl.ARRAY_BUFFER, this.positionBuffer)
@@ -28,10 +29,6 @@ class Model {
         })
         normals.map(normal => vector.normalize(normal))
         gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(normals.flat(2)), gl.STATIC_DRAW)
-    }
-
-    transform(matrix) {
-        this.transformationMatrix = this.transformationMatrix.dot(matrix)
     }
 
     draw(gl, shader) {

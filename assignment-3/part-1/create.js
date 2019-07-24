@@ -5,8 +5,8 @@ const create = {
         projection: (fieldOfView, aspect, near, far) => new Matrix([
             [1 / tan(fieldOfView / 2) / aspect,                                 0,                              0,  0],
             [                                0, 1 / tan(fieldOfView / 2) / aspect,                              0,  0],
-            [                                0,                                 0,   -(near + far) / (far - near), -1],
-            [                                0,                                 0, -2 * near * far / (far - near),  0]
+            [                                0,                                 0,   -(near + far) / (far - near), -2 * near * far / (far - near)],
+            [                                0,                                 0, -1,  0]
         ]),
         translation: (x, y, z) => new Matrix([
             [1, 0, 0, 0], 

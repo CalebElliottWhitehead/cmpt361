@@ -19,8 +19,12 @@ const vector = {
         else return vec.map(n => n - num_vec)
     },
     divide: (vec, num) => vec.map(n => n / num),
-    length: vec => Math.sqrt(vec.reduce((acc, cur) => acc + cur * cur)),
-    normalize: vec => length => vec.map(n => n / length)(vector.length(vec)),
+    length: vec => Math.sqrt(Math.abs(vec.reduce((acc, cur) => acc + cur * cur, 0))),
+    // prettier-ignore
+    normalize: vec => {
+        const length = vector.length(vec)
+        return vec.map(n => n / length || 0)
+    },
     surface: {
         normals: surface => {
             const t1 = vector.subtract(surface[1], surface[0])
@@ -35,28 +39,17 @@ class Matrix {
         if (mat) {
             this.m = mat
         } else {
-            this.m = new Array(4)
-            for (let i = 0; i < 4; i++) {
-                this.m[i] = new Array(4).fill(0)
-                this.m[i][i] = 1
-            }
+            // prettier-ignore
+            this.m = [
+                [1, 0, 0, 0],
+                [0, 1, 0, 0],
+                [0, 0, 1, 0],
+                [0, 0, 0, 1]
+            ]
         }
         return this
     }
-    scale(x, y, z) {
-        if (y !== undefined) {
-            this.m[0][0] * x
-            this.m[1][1] * y
-            this.m[2][2] * z
-        } else {
-            this.m[3][3] * x
-        }
-    }
-    get transpose() {
-        return new Matrix(
-            this.m.map((row, rowNum) => row.map((_, colNum) => this.m[colNum][rowNum]))
-        )
-    }
+
     dot(vec_mat) {
         if (Array.isArray(vec_mat)) {
             return this.transpose.m.map(vec => vector.multiply(vec, vec_mat))
@@ -65,22 +58,33 @@ class Matrix {
             this.transpose.m.map(vec => vec.map((_, i) => vector.multiply(vec, vec_mat.m[i])))
         ).transpose
     }
-    get out() {
-        return new Float32Array(this.transpose.m.flat())
+
+    get inverse() {
+        const partialTranspose = [
+            [this.m[0][0], this.m[1][0], this.m[2][0]],
+            [this.m[0][1], this.m[1][1], this.m[2][1]],
+            [this.m[0][2], this.m[1][2], this.m[2][2]]
+        ]
+        const partialAffine = partialTranspose.map(
+            vec => -1 * vector.multiply(vec, this.m[3].slice(0, 3))
+        )
+        const inverse = partialTranspose.map(vec => [...vec, 0])
+        inverse.push([...partialAffine, 1])
+        return new Matrix(inverse)
     }
+
+    get transpose() {
+        return new Matrix(
+            this.m.map((row, rowNum) => row.map((_, colNum) => this.m[colNum][rowNum]))
+        )
+    }
+
+    get out() {
+        return new Float32Array(this.m.flat())
+    }
+
     get string() {
         return "[" + this.transpose.m.map(vec => vec.join(", ")).join("]\n[") + "]"
-    }
-    colMajor(...arr) {
-        const matrix = []
-        for (let col = 0; col < 4; col++) {
-            const vec = []
-            for (let row = 0; row < 4; row++) {
-                vec.push(arr[4 * row + col])
-            }
-            matrix.push(vec)
-        }
-        this.m = matrix
     }
 }
 
