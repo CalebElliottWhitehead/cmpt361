@@ -1,35 +1,66 @@
+const gl = create.canvas(window)
+
+const vertexShaderSource = `
+precision mediump float;
+
+attribute vec4 a_Position;
+attribute vec3 a_Normal;
+
+uniform mat4 u_ModelMatrix, u_ModelViewMatrix, u_ProjectionMatrix;
+
+varying vec3 v_Normal;
+
+void main(void) {
+    gl_Position = u_ProjectionMatrix * u_ModelViewMatrix * u_ModelMatrix * a_Position;
+    v_Normal = mat3(u_ModelViewMatrix) * a_Normal;
+}
+`
+
+const fragmentShaderSource = `
+precision mediump float;
+
+varying vec3 v_Normal;
+
+void main(void) {
+    vec3 LightSourceDirection = vec3(0.7, 0.9, 1.0);
+    vec3 Normal = normalize(v_Normal);
+    float light = max(dot(Normal, LightSourceDirection), 0.1);
+    gl_FragColor = vec4(0.0, 0.6, 0.6, 0.6) * light;
+}
+`
+
 const positions = getVertices()
 
 const indices = getFaces()
 
-const canvas = document.querySelector("#glcanvas")
-const gl = canvas.getContext("webgl") || canvas.getContext("experimental-webgl")
-
-if (!gl) {
-    alert("Unable to initialize WebGL. Your browser or machine may not support it.")
-}
-
-// Initialize a shader program; this is where all the lighting
-// for the vertices and so forth is established.
 const shaderProgram = create.shader.program(gl, vertexShaderSource, fragmentShaderSource)
 
-// Collect all the info needed to use the shader program.
-// Look up which attributes our shader program is using
-// for aVertexPosition, aVevrtexColor and also
-// look up uniform locations.
 const shader = {
     program: shaderProgram,
     a: {
-        vertexPosition: gl.getAttribLocation(shaderProgram, "aVertexPosition")
+        position: gl.getAttribLocation(shaderProgram, "a_Position"),
+        normal: gl.getAttribLocation(shaderProgram, "a_Normal")
     },
     u: {
-        projectionMatrix: gl.getUniformLocation(shaderProgram, "uProjectionMatrix"),
-        modelViewMatrix: gl.getUniformLocation(shaderProgram, "uModelViewMatrix")
+        projectionMatrix: gl.getUniformLocation(shaderProgram, "u_ProjectionMatrix"),
+        modelViewMatrix: gl.getUniformLocation(shaderProgram, "u_ModelViewMatrix"),
+        modelMatrix: gl.getUniformLocation(shaderProgram, "u_ModelMatrix")
     }
 }
 gl.useProgram(shader.program)
 
 const bunny = new Model(gl, positions, indices)
+bunny.translate(0, 0.2, 0)
+
+const cubeData = create.shape.cube(20, 1)
+const cube = new Model(gl, cubeData.vertices, cubeData.faces)
+cube.translate(0, -0.5, 0)
+
+const grid = new Grid(gl, 10, 10)
+console.log(grid.lines)
+
+const cylinderData = create.shape.cylinder()
+const cylinder = new Model(gl, cylinderData.vertices, cylinderData.faces)
 
 // Draw the scene repeatedly
 const render = (now, camera) => {
@@ -46,7 +77,10 @@ const render = (now, camera) => {
     camera.clear(gl)
     camera.view(gl)
 
+    // grid.draw(gl, shader)
     bunny.draw(gl, shader)
+    cube.draw(gl, shader)
+    cylinder.draw(gl, shader)
 
     requestAnimationFrame(now => render(now, camera))
 }

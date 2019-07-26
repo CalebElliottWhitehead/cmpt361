@@ -62,7 +62,7 @@ class Camera extends Entity {
 
         if (this.r) {
             this.r = false
-            this.reset()
+            this.lookAt([0, 0, 0])
             return
         }
 
@@ -96,8 +96,26 @@ class Camera extends Entity {
         }
     }
 
+    lookAt(position) {
+        const direction = vector.normalize(vector.subtract(position, this.matrix.position))
+        console.log("direction:", vector.string(direction))
+        const right = vector.normalize(vector.cross(direction, [0, 1, 0]))
+        console.log("right:", vector.string(right))
+        const up = vector.normalize(vector.cross(right, direction))
+        console.log("up:", vector.string(up))
+        console.log(this.matrix.string)
+        // prettier-ignore
+        this.matrix = new Matrix([
+            [    ...right, 0],
+            [       ...up, 0],
+            [...vector.negate(direction), 0],
+            [     0, 0, 15, 1]
+        ])
+        console.log(this.matrix.string)
+    }
+
     reset() {
-        this.matrix = create.matrix.translation(0, 0, 15)
+        this.matrix = create.matrix.translation(0, 3, 15)
     }
 
     view(gl) {
@@ -112,3 +130,13 @@ class Camera extends Entity {
         gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT)
     }
 }
+
+// var v = normalize(subtract(at, eye)) // view direction vector
+// var n = normalize(cross(v, up)) // perpendicular vector
+// var u = normalize(cross(n, v)) // "new" up vector
+
+// v = negate(v)
+
+// var result = mat4(vec4(n, -dot(n, eye)), vec4(u, -dot(u, eye)), vec4(v, -dot(v, eye)), vec4())
+
+// return result

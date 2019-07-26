@@ -5,9 +5,9 @@ const tan = theta => Math.tan(theta)
 const vector = {
     multiply: (vec1, vec2) => vec1.reduce((acc, cur, i) => acc + cur * vec2[i], 0),
     cross: (vec1, vec2) => [
-        (vec1[1] * vec2[2] - vec1[2] * vec2[1],
+        vec1[1] * vec2[2] - vec1[2] * vec2[1],
         vec1[2] * vec2[0] - vec1[0] * vec2[2],
-        vec1[0] * vec2[1] - vec1[1] * vec2[0])
+        vec1[0] * vec2[1] - vec1[1] * vec2[0]
     ],
     combine: (vec1, vec2) => vec1.map((num, i) => vec2[i] * num),
     add: (vec, num_vec) => {
@@ -25,6 +25,8 @@ const vector = {
         const length = vector.length(vec)
         return vec.map(n => n / length || 0)
     },
+    negate: vec => vec.map(n => -1 * n),
+    string: vec => "[" + vec.map(n => n.toFixed(2)).join(", ") + "]",
     surface: {
         normals: surface => {
             const t1 = vector.subtract(surface[1], surface[0])
@@ -79,12 +81,16 @@ class Matrix {
         )
     }
 
+    get position() {
+        return this.m[3].slice(0, 3)
+    }
+
     get out() {
         return new Float32Array(this.m.flat())
     }
 
     get string() {
-        return "[" + this.transpose.m.map(vec => vec.join(", ")).join("]\n[") + "]"
+        return "[" + this.m.map(vec => vec.map(n => n.toFixed(2)).join(", ")).join("]\n[") + "]"
     }
 }
 

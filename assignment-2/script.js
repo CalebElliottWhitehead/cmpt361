@@ -717,4 +717,6 @@ const render = (then, now, theta, phi, transformationMat, lastPosition) => {
 const transformationMat = new Matrix()
 transformationMat.translate(...config.cameraPosition)
 
+const grid = new Grid(gl, 10, 10)
+
 requestAnimationFrame(now => render(0, now, 0, 0, transformationMat, { x: 0, y: 0 }))
