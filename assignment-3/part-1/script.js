@@ -1,30 +1,99 @@
+const gl = create.canvas(window)
+
 const vertexShaderSource = `
 precision mediump float;
 
-attribute vec3 a_Position, a_Normal;
+attribute vec4 a_Position;
+attribute vec3 a_Normal;
 
-uniform mat4 u_ModelMatrix, u_ViewMatrix, u_ProjectionMatrix;
+uniform mat4 u_ModelMatrix, u_ModelViewMatrix, u_ProjectionMatrix;
 
-void main() {
-    vec4 Position = vec4(a_Position, 1.0);
-    gl_Position = u_ProjectionMatrix * u_ViewMatrix * Position;
+varying vec3 v_Normal, v_LightDirection;
+
+void main(void) {
+    gl_Position = u_ProjectionMatrix * u_ModelViewMatrix * u_ModelMatrix * a_Position;
+    v_Normal = mat3(u_ModelViewMatrix * u_ModelMatrix) * a_Normal;
+    v_LightDirection = mat3(u_ModelViewMatrix) *  vec3(0.7, 0.9, 1.0);
 }
 `
 
 const fragmentShaderSource = `
 precision mediump float;
 
-void main() {
-    gl_FragColor = vec4(0.0, 1.0, 1.0, 1.0);
+varying vec3 v_Normal, v_LightDirection;
+
+void main(void) {
+    vec3 Normal = normalize(v_Normal);
+    float light = max(dot(Normal, v_LightDirection), 0.1);
+    gl_FragColor = vec4(0.0, 0.6, 0.6, 0.6) * light;
 }
 `
 
-const canvas = document.querySelector("#canvas")
-const gl = canvas.getContext("webgl") || canvas.getContext("experimental-webgl")
-if (!gl) alert("Unable to initialize WebGL. Your browser or machine may not support it.")
+class Arm {
+    constructor(gl) {
+        this.base = new Cylinder(gl, 0.5, 1, 1)
+        this.rotator = new Cylinder(gl, 0.25, 0.75, 0.75)
+        this.upperArm = new Cylinder(gl, 4, 0.25, 0.25)
+        this.lowerArm = new Cylinder(gl, 4, 0.25, 0.25)
+
+        const joint = new Cylinder(gl, 0.6).translate(0.3, 0, 0).rotateZ(Math.PI / 2)
+        this.base.children.push(this.rotator)
+        this.base.children[0].children.push(this.upperArm, joint)
+        this.base.children[0].children[0].children.push(this.lowerArm, joint)
+
+        this.lowerArm.rotateX(0.3)
+
+        this.speed = {
+            bend: 1,
+            rotation: 1
+        }
+
+        this.current = {
+            bend: 0,
+            rotation: 0
+        }
+
+        this.target = {
+            bend: 0,
+            rotation: 0
+        }
+    }
+
+    moveTo(bend, rotation) {
+        this.target = {
+            bend: bend,
+            rotation: rotation
+        }
+    }
+
+    move(distance) {
+        const delta = {
+            bend: this.target.bend - this.current.bend,
+            rotation: this.target.rotation - this.current.rotation
+        }
+
+        if (delta.bend != 0) {
+            // prettier-ignore
+            delta.bend = Math.sign(delta.bend) * Math.min(Math.abs(delta.bend), distance * this.speed.bend)
+            this.current.bend += delta.bend
+            this.upperArm.matrix = create.matrix.rotation.x(this.current.bend / 2)
+            this.lowerArm.matrix = create.matrix.rotation.x(this.current.bend / 2)
+        }
+
+        if (delta.rotation != 0) {
+            // prettier-ignore
+            delta.rotation = Math.sign(delta.rotation) * Math.min(Math.abs(delta.rotation), distance * this.speed.rotation)
+            this.current.rotation += delta.rotation
+            this.rotator.matrix = create.matrix.rotation.y(this.current.bend)
+        }
+    }
+
+    draw(gl, shader) {
+        this.base.draw(gl, shader)
+    }
+}
 
 const shaderProgram = create.shader.program(gl, vertexShaderSource, fragmentShaderSource)
-gl.useProgram(shaderProgram)
 
 const shader = {
     program: shaderProgram,
@@ -33,148 +102,42 @@ const shader = {
         normal: gl.getAttribLocation(shaderProgram, "a_Normal")
     },
     u: {
-        modelMatrix: gl.getUniformLocation(shaderProgram, "u_ModelMatrix"),
-        viewMatrix: gl.getUniformLocation(shaderProgram, "u_ViewMatrix"),
-        projectionMatrix: gl.getUniformLocation(shaderProgram, "u_ProjectionMatrix")
+        projectionMatrix: gl.getUniformLocation(shaderProgram, "u_ProjectionMatrix"),
+        modelViewMatrix: gl.getUniformLocation(shaderProgram, "u_ModelViewMatrix"),
+        modelMatrix: gl.getUniformLocation(shaderProgram, "u_ModelMatrix")
     }
 }
-
-const input = {
-    mouse: {
-        leftClick: false,
-        rightClick: false,
-        x: 0,
-        y: 0
-    },
-    wheel: 0,
-    r: false,
-    p: false,
-    s: false
-}
-
-const leftClick = isClicked => (input.mouse.leftClick = isClicked)
-
-const rightClick = isClicked => (input.mouse.rightClick = isClicked)
-
-window.addEventListener("contextmenu", event => event.preventDefault())
-
-window.addEventListener("mousedown", event => {
-    if (event.button === 0) leftClick(true)
-    if (event.button === 2) rightClick(true)
-})
-
-window.addEventListener("mousemove", event => {
-    input.mouse.x = event.clientX
-    input.mouse.y = event.clientY
-})
-
-window.addEventListener("mouseup", event => {
-    if (event.button === 0) leftClick(false)
-    if (event.button === 2) rightClick(false)
-})
-
-window.addEventListener("wheel", event => {
-    input.wheel = event.deltaY
-})
-
-window.addEventListener("keydown", event => {
-    if (event.key === "r") {
-        input.r = true
-    }
-})
-
-window.addEventListener("keydown", event => {
-    if (event.key === "p") {
-        input.p = true
-    }
-})
-
-window.addEventListener("keydown", event => {
-    if (event.key === "s") {
-        input.s = true
-    }
-})
-
-let log = true
-
-const render = (now, model, lastPosition, camera) => {
-    const movement = {
-        x: input.mouse.x - lastPosition.x,
-        y: input.mouse.y - lastPosition.y
-    }
-
-    lastPosition = {
-        x: input.mouse.x,
-        y: input.mouse.y
-    }
-
-    const fieldOfView = (45 * Math.PI) / 180 // in radians
-    const aspect = gl.canvas.clientWidth / gl.canvas.clientHeight
-    const near = 0.1
-    const far = 100.0
-    const projectionMatrix = create.matrix.projection(fieldOfView, aspect, near, far)
-    const projectionMatrix2 = createProjectionMat(fieldOfView, aspect, near, far)
-    gl.uniformMatrix4fv(shader.u.projectionMatrix, false, projectionMatrix2.out)
-
-    // const cameraTransform = create.matrix.translation(0, 0, -20)
-    // camera.transform(cameraTransform)
-
-    camera.reset(gl)
-    camera.setView(gl)
-
-    bunny.draw(gl, shader)
-
-    if (input.mouse.rightClick && (movement.x != 0 || movement.y != 0)) {
-        const vec = [-movement.y, -movement.x, 0]
-        const cameraRotationMatrix = create.matrix.rotation.axis(
-            vector.length(vec) / 100,
-            ...vector.normalize(vec)
-        )
-        camera.transform(cameraRotationMatrix)
-    }
-
-    if (input.mouse.leftClick && (movement.x != 0 || movement.y != 0)) {
-        transformationMat.translate(movement.x / 100, -movement.y / 100, 0)
-    }
-
-    if (input.r) {
-        transformationMat = new Matrix()
-        transformationMat.translate(0, 0, -10)
-        input.r = false
-    }
-
-    if (input.wheel) {
-        transformationMat.translate(0, 0, input.wheel)
-        input.wheel = 0
-    }
-    if (log) {
-        console.log(projectionMatrix.string)
-        console.log(projectionMatrix2.string)
-        log = false
-    }
-
-    requestAnimationFrame(now => render(now, model, lastPosition, camera))
-}
-
-const camera = new Camera(shader.u.viewMatrix)
-const cameraTransform = create.matrix.translation(20, 0, -20)
-camera.transform(cameraTransform)
-
-console.log(camera.viewMatrix.string)
+gl.useProgram(shader.program)
 
 const bunny = new Model(gl, getVertices(), getFaces())
+bunny.translate(0, 0.2, 0)
 
-const createProjectionMat = (fovy, aspect, near, far) => {
-    const f = 1.0 / Math.tan(fovy / 2)
-    const d = far - near
-    const result = new Matrix()
-    result.m[0][0] = f / aspect
-    result.m[1][1] = f
-    result.m[2][2] = -(near + far) / d
-    result.m[2][3] = (-2 * near * far) / d
-    result.m[3][2] = -1
-    result.m[3][3] = 0
-    return result
+const cube = create.shape.cube(gl, 20, 1)
+cube.translate(0, -0.5, 0)
+
+const arm = new Arm(gl)
+arm.moveTo(2, -1)
+
+const render = (now, then, camera) => {
+    now *= 0.001 // convert to seconds
+    const delta = now - then
+
+    camera.control()
+    camera.clear(gl)
+    camera.view(gl)
+
+    // bunny.draw(gl, shader)
+    cube.draw(gl, shader)
+    // cylinder.draw(gl, shader)
+    arm.move(delta)
+    arm.draw(gl, shader)
+
+    then = now
+    requestAnimationFrame(now => render(now, then, camera))
 }
 
-requestAnimationFrame(now => render(now, bunny, { x: 0, y: 0 }, camera))
+const camera = new Camera(shader.u.modelViewMatrix, shader.u.projectionMatrix)
+camera.initControls(window)
+camera.reset()
+
+render(0, 0, camera)

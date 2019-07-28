@@ -1,10 +1,29 @@
 class Entity {
     constructor(matrix) {
         this.matrix = matrix
+        this.children = []
     }
 
     transform(matrix) {
         this.matrix = this.matrix.dot(matrix)
+        return this
+    }
+
+    rotateX(theta) {
+        const rotation = create.matrix.rotation.x(theta)
+        this.matrix = this.matrix.dot(rotation)
+        return this
+    }
+
+    rotateY(theta) {
+        const rotation = create.matrix.rotation.axis(theta, 1, 1, 0)
+        this.matrix = this.matrix.dot(rotation)
+        return this
+    }
+
+    rotateZ(theta) {
+        const rotation = create.matrix.rotation.z(theta)
+        this.matrix = this.matrix.dot(rotation)
         return this
     }
 

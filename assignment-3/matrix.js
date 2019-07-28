@@ -93,28 +93,3 @@ class Matrix {
         return "[" + this.m.map(vec => vec.map(n => n.toFixed(2)).join(", ")).join("]\n[") + "]"
     }
 }
-
-const vec1 = [1, 2, 3, 4]
-console.log(vector.length(vec1))
-
-const sup = str => console.log(str)
-
-// const mat1 = new Matrix()
-// // prettier-ignore
-// mat1.colMajor(
-//      1,  2,  3,  4,
-//      5,  6,  7,  8,
-//      9, 10, 11, 12,
-//     13, 14, 15, 16,
-// )
-
-// const mat2 = new Matrix()
-// // prettier-ignore
-// mat2.colMajor(
-//      4,  2,  3,  4,
-//      5,  12,  7,  10,
-//      9, 10, 11, 12,
-//     13, 14, 15, 16,
-// )
-
-// console.log(mat1.dot(vec1))

@@ -22,16 +22,16 @@ const create = {
                 [0,           0,          0, 1]
             ]),
             y: theta => new Matrix([
-                [ cos(theta), 0, sin(theta), 0],
-                [          0, 1,          0, 0],
-                [-sin(theta), 0, cos(theta), 0],
-                [          0, 0,          0, 1]
+                [cos(theta), 0, -sin(theta), 0],
+                [         0, 1,           0, 0],
+                [sin(theta), 0,  cos(theta), 0],
+                [         0, 0,           0, 1]
             ]),
             z: theta => new Matrix([
                 [ cos(theta), sin(theta), 0, 0],
                 [-sin(theta), cos(theta), 0, 0],
                 [          0,          0, 1, 0],
-                [          0,          0, 1, 0]
+                [          0,          0, 0, 1]
             ]),
             axis: (theta, x, y, z) => new Matrix([
                 [    cos(theta) + (1 - cos(theta)) * x * x, (1 - cos(theta)) * x * y + z * sin(theta), (1 - cos(theta)) * x * z - y * sin(theta), 0],
@@ -77,7 +77,7 @@ const create = {
     },
     canvas: window => {
         const canvas = window.document.createElement("canvas")
-        canvas.width = window.innerWidth
+        canvas.width = Math.min(window.innerHeight, window.innerWidth)
         canvas.height = Math.min(window.innerHeight, window.innerWidth)
         window.document.body.appendChild(canvas)
         window.document.body.style.margin = 0
@@ -86,9 +86,10 @@ const create = {
         return canvas.getContext("webgl")
     },
     shape: {
-        cube: (width, height) => {
-            return {
-                vertices: [
+        cube: (gl, width, height) =>
+            new Model(
+                gl,
+                [
                     [-1.0, -1.0, 1.0],
                     [1.0, -1.0, 1.0],
                     [1.0, 1.0, 1.0],
@@ -118,7 +119,7 @@ const create = {
                     vertex[1] * height * 0.5,
                     vertex[2] * width * 0.5
                 ]),
-                faces: [
+                [
                     [0, 1, 2],
                     [0, 2, 3],
                     [4, 5, 6],
@@ -132,122 +133,93 @@ const create = {
                     [20, 21, 22],
                     [20, 22, 23]
                 ]
-            }
-        },
-        cylinder: (rBottom = 0.5, rTop = 0.5, height = 5, numSides = 8, numSegments = 4) => {
+            ),
+        cylinder: (gl, height = 4, topRadius = 0.5, bottomRadius = 0.5, sides = 12) => {
+            const stepTheta = (2 * Math.PI) / sides
+            const verticesPerCap = 9 * sides
+
             const vertices = []
-            const normals = []
-            const faces = []
 
             let index = 0
-            const offsetY = -height / 2
 
-            for (let j = 0; j <= numSegments; j++) {
-                for (let i = 0; i <= numSides; i++) {
-                    const r = rBottom + ((rTop - rBottom) * j) / numSegments
-                    const y = offsetY + (height * j) / numSegments
-                    const x = r * Math.cos((i / numSides) * Math.PI * 2)
-                    const z = r * Math.sin((i / numSides) * Math.PI * 2)
-                    vertices.push([x, y, z])
-                    normals.push([x, 0, z])
-                    if (i < numSides && j < numSegments) {
-                        faces.push([
-                            index + 1,
-                            index,
-                            index + numSides + 1,
-                            index + numSides + 1 + 1
-                        ])
-                    }
-                    index++
-                }
+            // top cap
+            let theta = 0
+            while (index < verticesPerCap) {
+                vertices[index] = Math.cos(theta) * topRadius
+                vertices[index + 1] = height
+                vertices[index + 2] = Math.sin(theta) * topRadius
+                theta += stepTheta
+
+                vertices[index + 3] = 0.0
+                vertices[index + 4] = height
+                vertices[index + 5] = 0.0
+
+                vertices[index + 6] = Math.cos(theta) * topRadius
+                vertices[index + 7] = height
+                vertices[index + 8] = Math.sin(theta) * topRadius
+
+                index += 9
             }
 
             // bottom cap
-            vertices.push([0, offsetY, 0])
-            normals.push([0, -1, 0])
-            const centerIndex = index
-            index++
-            for (var i = 0; i <= numSides; i++) {
-                const y = offsetY
-                const x = rBottom * Math.cos((i / numSides) * Math.PI * 2)
-                const z = rBottom * Math.sin((i / numSides) * Math.PI * 2)
-                vertices.push([x, y, z])
-                if (i < numSides) {
-                    faces.push([index, index + 1, centerIndex])
+            theta = 0
+            while (index < verticesPerCap + verticesPerCap) {
+                vertices[index + 6] = Math.cos(theta) * bottomRadius
+                vertices[index + 7] = -height
+                vertices[index + 8] = Math.sin(theta) * bottomRadius
+                theta += stepTheta
+
+                vertices[index + 3] = 0.0
+                vertices[index + 4] = -height
+                vertices[index + 5] = 0.0
+
+                vertices[index] = Math.cos(theta) * bottomRadius
+                vertices[index + 1] = -height
+                vertices[index + 2] = Math.sin(theta) * bottomRadius
+
+                index += 9
+            }
+
+            // sides
+            for (let j = 0; j < sides; j++) {
+                for (let k = 0; k < 3; k++, index++) {
+                    vertices[index] = vertices[0 + k + 9 * j]
                 }
-                normals.push([0, -1, 0])
-                index++
-            }
-
-            // top cap
-            vertices.push([0, offsetY + height, 0])
-            normals.push([0, 1, 0])
-            index++
-            for (var i = 0; i <= numSides; i++) {
-                var y = offsetY + height
-                var x = rTop * Math.cos((i / numSides) * Math.PI * 2)
-                var z = rTop * Math.sin((i / numSides) * Math.PI * 2)
-                vertices.push([x, y, z])
-                if (i < numSides) {
-                    faces.push([index + 1, index, centerIndex])
+                for (let k = 0; k < 3; k++, index++) {
+                    vertices[index] = vertices[6 + k + 9 * j]
                 }
-                normals.push([0, 1, 0])
-                index++
-            }
-
-            return {
-                vertices,
-                faces,
-                normals
-            }
-        },
-        cylinder2: (radius = 1, height = 2, sides = 5) => {
-            const points = sides * height * 6
-            const step = (Math.PI * 2) / sides
-            let angle = 0
-
-            // generate points
-            const positions = Array(points)
-                .fill([0, 0, 0])
-                .map((el, index) => {
-                    const _index = index / sides
-
-                    if (index % sides === 0) {
-                        angle = 0
-                    }
-
-                    const vector = [
-                        Math.sin(angle) * (radius / 2.0),
-                        _index,
-                        Math.cos(angle) * (radius / 2.0)
-                    ]
-
-                    angle += step
-
-                    return vector
-                })
-
-            // connect lines with cells
-            const cells = []
-
-            for (let i = 0; i < points / 2; i += sides) {
-                for (let j = 0; j < sides; j++) {
-                    // if last cell in row, connect back to
-                    // first side to complete tunnel.
-                    if (j === sides) {
-                        cells.push([j + i, sides * i, sides + j + i])
-                        cells.push([sides * i, sides + j + i, 1 + j + i])
-                    } else {
-                        cells.push([j + i, j + i + 1, sides + j + i])
-                        cells.push([j + i + 1, sides + j + i, sides + 1 + j + i])
-                    }
+                for (let k = 0; k < 3; k++, index++) {
+                    vertices[index] = vertices[verticesPerCap + k + 9 * j]
+                }
+                for (let k = 0; k < 3; k++, index++) {
+                    vertices[index] = vertices[0 + k + 9 * j]
+                }
+                for (let k = 0; k < 3; k++, index++) {
+                    vertices[index] = vertices[verticesPerCap + k + 9 * j]
+                }
+                for (let k = 0; k < 3; k++, index++) {
+                    vertices[index] = vertices[verticesPerCap + 6 + k + 9 * j]
                 }
             }
 
-            return {
-                vertices: positions,
-                faces: cells
+            const indices = []
+            for (index = 0; index < vertices.length / 3; index += 3) {
+                indices.push([index, index + 1, index + 2])
             }
+
+            const normals = []
+            for (index = 0; index < vertices.length; index += 9) {
+                const a = [vertices[index], vertices[index + 1], vertices[index + 2]]
+                const b = [vertices[index + 3], vertices[index + 4], vertices[index + 5]]
+                const c = [vertices[index + 6], vertices[index + 7], vertices[index + 8]]
+                const normal = vector.normalize(
+                    vector.cross(vector.subtract(a, b), vector.subtract(a, c))
+                )
+                normals.push(normal, normal, normal)
+            }
+            const model = new Model(gl, vertices, indices, normals)
+            model.translate(0, height, 0)
+            return model
         }
     }
 }

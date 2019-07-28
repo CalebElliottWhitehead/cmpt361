@@ -1,11 +1,18 @@
 class Camera extends Entity {
-    constructor(uniform) {
+    constructor(modelViewUniform, projectionUniform) {
         super(new Matrix())
-        this.uniform = uniform
+        this.uniform = modelViewUniform
         this.controllable = false
+
+        const fieldOfView = (45 * Math.PI) / 180 // in radians
+        const aspect = gl.canvas.clientWidth / gl.canvas.clientHeight
+        const near = 0.1
+        const far = 100.0
+        this.projectionMatrix = create.matrix.projection(fieldOfView, aspect, near, far)
+        gl.uniformMatrix4fv(projectionUniform, false, this.projectionMatrix.out)
     }
 
-    initControls() {
+    initControls(window) {
         this.controllable = true
 
         this.wheel = 0
@@ -35,7 +42,6 @@ class Camera extends Entity {
         })
 
         window.addEventListener("mouseup", event => {
-            if (event.button === 0) this.click.left = false
             if (event.button === 2) this.click.right = false
         })
 
@@ -81,18 +87,29 @@ class Camera extends Entity {
             y: this.mousePosition.y
         }
 
+        // if (this.click.right && (movement.x != 0 || movement.y != 0)) {
+        //     const axis = [movement.y, movement.x, 0]
+        //     const theta = vector.length(axis) / 100
+        //     this.matrix = create.matrix.rotation
+        //         .axis(theta, ...vector.normalize(axis))
+        //         .dot(this.matrix)
+        // }
+
         if (this.click.right && (movement.x != 0 || movement.y != 0)) {
-            const axis = [movement.y, movement.x, 0]
-            const theta = vector.length(axis) / 100
-            this.matrix = create.matrix.rotation
-                .axis(theta, ...vector.normalize(axis))
-                .dot(this.matrix)
+            const position = this.matrix.position
+            this.matrix = create.matrix.rotation.y(-movement.x / 500).dot(this.matrix)
+            this.matrix = create.matrix.rotation.x(-movement.y / 500).dot(this.matrix)
+            this.matrix.m[3] = [...position, 1]
         }
 
-        if (this.click.left && (movement.x != 0 || movement.y != 0)) {
-            this.matrix = create.matrix
-                .translation(movement.x / 100, -movement.y / 100, 0)
-                .dot(this.matrix)
+        // if (this.click.left && (movement.x != 0 || movement.y != 0)) {
+        //     this.matrix = create.matrix
+        //         .translation(movement.x / 100, -movement.y / 100, 0)
+        //         .dot(this.matrix)
+        // }
+
+        if (this.click.left) {
+            console.log("clicked!")
         }
     }
 
@@ -106,20 +123,22 @@ class Camera extends Entity {
         console.log(this.matrix.string)
         // prettier-ignore
         this.matrix = new Matrix([
-            [    ...right, 0],
-            [       ...up, 0],
+            [                   ...right, 0],
+            [                      ...up, 0],
             [...vector.negate(direction), 0],
-            [     0, 0, 15, 1]
+            [                  0, 0, -15, 1]
         ])
         console.log(this.matrix.string)
     }
 
     reset() {
-        this.matrix = create.matrix.translation(0, 3, 15)
+        this.matrix = new Matrix()
+        this.matrix = create.matrix.translation(0, -10, -25)
+        this.matrix = create.matrix.rotation.x(0.4).dot(this.matrix)
     }
 
     view(gl) {
-        gl.uniformMatrix4fv(this.uniform, false, this.matrix.inverse.out)
+        gl.uniformMatrix4fv(this.uniform, false, this.matrix.out)
     }
 
     clear(gl) {
