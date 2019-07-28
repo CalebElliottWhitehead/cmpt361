@@ -28,68 +28,73 @@ void main(void) {
     gl_FragColor = vec4(0.0, 0.6, 0.6, 0.6) * light;
 }
 `
+console.log("hi")
+class Branch extends Cylinder {
+    constructor(gl, pointers, radius, total, current = total, rotation = 0.15) {
+        const topRadius = (current - 1) / total
+        const bottomRadius = current / total
 
-class Arm {
+        super(gl, 3, radius * topRadius, radius * bottomRadius)
+
+        if (Math.random() < 0.3) {
+        } else {
+            this.rotateZ(rotation)
+        }
+
+        this.rotateY(Math.sign(rotation) * 0.12)
+
+        console.log(current)
+
+        if (0 < current - 1) {
+            if (Math.random() < 0.4) {
+                let randomVec = vector.normalize([
+                    Math.random() - 0.5,
+                    Math.random() - 0.5,
+                    Math.random() - 0.5
+                ])
+                const scalar = rotation * 7 * (Math.random() - 0.5)
+                this.children.push(
+                    new Branch(
+                        gl,
+                        pointers,
+                        radius,
+                        total,
+                        current - 1,
+                        rotation * (Math.random() - 0.5) * 2
+                    ).rotate(scalar, ...randomVec)
+                )
+                if (Math.random() < 0.4 && 0 < pointers.breaks) {
+                    pointers.breaks--
+                    this.children.push(
+                        new Branch(
+                            gl,
+                            pointers,
+                            radius,
+                            total,
+                            current - 1,
+                            rotation * (Math.random() - 0.5) * 2
+                        ).rotate(-scalar, ...randomVec)
+                    )
+                }
+            } else {
+                this.children.push(
+                    new Branch(gl, pointers, radius, total, current - 1, rotation * 1.2)
+                )
+            }
+        }
+    }
+}
+
+class Tree {
     constructor(gl) {
-        this.base = new Cylinder(gl, 0.5, 1, 1)
-        this.rotator = new Cylinder(gl, 0.25, 0.75, 0.75)
-        this.upperArm = new Cylinder(gl, 4, 0.25, 0.25)
-        this.lowerArm = new Cylinder(gl, 4, 0.25, 0.25)
-
-        const joint = new Cylinder(gl, 0.6).translate(0.3, 0, 0).rotateZ(Math.PI / 2)
-        this.base.children.push(this.rotator)
-        this.base.children[0].children.push(this.upperArm, joint)
-        this.base.children[0].children[0].children.push(this.lowerArm, joint)
-
-        this.lowerArm.rotateX(0.3)
-
-        this.speed = {
-            bend: 1,
-            rotation: 1
+        const pointers = {
+            breaks: 4
         }
-
-        this.current = {
-            bend: 0,
-            rotation: 0
-        }
-
-        this.target = {
-            bend: 0,
-            rotation: 0
-        }
-    }
-
-    moveTo(bend, rotation) {
-        this.target = {
-            bend: bend,
-            rotation: rotation
-        }
-    }
-
-    move(distance) {
-        const delta = {
-            bend: this.target.bend - this.current.bend,
-            rotation: this.target.rotation - this.current.rotation
-        }
-
-        if (delta.bend != 0) {
-            // prettier-ignore
-            delta.bend = Math.sign(delta.bend) * Math.min(Math.abs(delta.bend), distance * this.speed.bend)
-            this.current.bend += delta.bend
-            this.upperArm.matrix = create.matrix.rotation.x(this.current.bend / 2)
-            this.lowerArm.matrix = create.matrix.rotation.x(this.current.bend / 2)
-        }
-
-        if (delta.rotation != 0) {
-            // prettier-ignore
-            delta.rotation = Math.sign(delta.rotation) * Math.min(Math.abs(delta.rotation), distance * this.speed.rotation)
-            this.current.rotation += delta.rotation
-            this.rotator.matrix = create.matrix.rotation.y(this.current.bend)
-        }
+        this.trunk = new Branch(gl, pointers, 1, 8)
     }
 
     draw(gl, shader) {
-        this.base.draw(gl, shader)
+        this.trunk.draw(gl, shader)
     }
 }
 
@@ -115,8 +120,7 @@ bunny.translate(0, 0.2, 0)
 const cube = create.shape.cube(gl, 20, 1)
 cube.translate(0, -0.5, 0)
 
-const arm = new Arm(gl)
-arm.moveTo(2, -1)
+const tree = new Tree(gl)
 
 const render = (now, then, camera) => {
     now *= 0.001 // convert to seconds
@@ -126,11 +130,8 @@ const render = (now, then, camera) => {
     camera.clear(gl)
     camera.view(gl)
 
-    // bunny.draw(gl, shader)
     cube.draw(gl, shader)
-    // cylinder.draw(gl, shader)
-    arm.move(delta)
-    arm.draw(gl, shader)
+    tree.draw(gl, shader)
 
     then = now
     requestAnimationFrame(now => render(now, then, camera))

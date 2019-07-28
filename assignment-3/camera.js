@@ -133,7 +133,7 @@ class Camera extends Entity {
 
     reset() {
         this.matrix = new Matrix()
-        this.matrix = create.matrix.translation(0, -10, -25)
+        this.matrix = create.matrix.translation(0, -25, -35)
         this.matrix = create.matrix.rotation.x(0.4).dot(this.matrix)
     }
 
