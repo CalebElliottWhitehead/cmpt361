@@ -28,58 +28,48 @@ void main(void) {
     gl_FragColor = vec4(0.0, 0.6, 0.6, 0.6) * light;
 }
 `
-console.log("hi")
+
+console.log(vector.cross([1, 2, 3], [0, 1, 0]))
+
 class Branch extends Cylinder {
-    constructor(gl, pointers, radius, total, current = total, rotation = 0.15) {
+    constructor(gl, radius, total, current = total, branchable = true) {
         const topRadius = (current - 1) / total
         const bottomRadius = current / total
+        const sides = Math.floor(Math.max(bottomRadius * 14, 3))
+        const length = Math.pow(bottomRadius, 2) * 2 + 2
 
-        super(gl, 3, radius * topRadius, radius * bottomRadius)
+        super(gl, length, radius * topRadius, radius * bottomRadius, sides)
 
+        // rotate self
         if (Math.random() < 0.3) {
+            this.rotate(topRadius - 0.7, 0.71, 0, 0.71)
         } else {
-            this.rotateZ(rotation)
+            this.rotate(-(topRadius - 0.7), 0.71, 0, 0.71)
         }
 
-        this.rotateY(Math.sign(rotation) * 0.12)
-
-        console.log(current)
-
-        if (0 < current - 1) {
-            if (Math.random() < 0.4) {
-                let randomVec = vector.normalize([
-                    Math.random() - 0.5,
-                    Math.random() - 0.5,
-                    Math.random() - 0.5
-                ])
-                const scalar = rotation * 7 * (Math.random() - 0.5)
+        // twigs
+        for (let i = 0; i < 6; i++) {
+            if (Math.random() < Math.pow(1 - bottomRadius, 3) && 2 < current && branchable) {
+                console.log("twig!")
+                const axis = vector.normalize([Math.random() - 0.5, 0, Math.random() - 0.5, 0])
                 this.children.push(
-                    new Branch(
-                        gl,
-                        pointers,
-                        radius,
-                        total,
-                        current - 1,
-                        rotation * (Math.random() - 0.5) * 2
-                    ).rotate(scalar, ...randomVec)
+                    new Branch(gl, topRadius, total, current - 1, false).rotate(1, ...axis)
                 )
-                if (Math.random() < 0.4 && 0 < pointers.breaks) {
-                    pointers.breaks--
-                    this.children.push(
-                        new Branch(
-                            gl,
-                            pointers,
-                            radius,
-                            total,
-                            current - 1,
-                            rotation * (Math.random() - 0.5) * 2
-                        ).rotate(-scalar, ...randomVec)
-                    )
-                }
+            }
+        }
+
+        // continue current
+        if (2 < current) {
+            if (Math.random() < Math.pow(bottomRadius, 2)) {
+                // branch
+                const axis = vector.normalize([Math.random() - 0.5, 0, Math.random() - 0.5, 0])
+                this.children.push(
+                    new Branch(gl, topRadius, total, current - 1).rotate(0.6, ...axis),
+                    new Branch(gl, topRadius, total, current - 1).rotate(-0.6, ...axis)
+                )
             } else {
-                this.children.push(
-                    new Branch(gl, pointers, radius, total, current - 1, rotation * 1.2)
-                )
+                // don't branch
+                this.children.push(new Branch(gl, topRadius, total, current - 1))
             }
         }
     }
@@ -90,10 +80,12 @@ class Tree {
         const pointers = {
             breaks: 4
         }
-        this.trunk = new Branch(gl, pointers, 1, 8)
+        this.trunk = new Cylinder(gl, 3, 1, 2)
+        this.trunk.children.push(new Branch(gl, 1, 9))
     }
 
-    draw(gl, shader) {
+    draw(gl, shader, delta) {
+        this.trunk.rotateY(delta)
         this.trunk.draw(gl, shader)
     }
 }
@@ -131,7 +123,7 @@ const render = (now, then, camera) => {
     camera.view(gl)
 
     cube.draw(gl, shader)
-    tree.draw(gl, shader)
+    tree.draw(gl, shader, delta)
 
     then = now
     requestAnimationFrame(now => render(now, then, camera))

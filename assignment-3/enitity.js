@@ -16,7 +16,7 @@ class Entity {
     }
 
     rotateY(theta) {
-        const rotation = create.matrix.rotation.axis(theta, 1, 1, 0)
+        const rotation = create.matrix.rotation.y(theta)
         this.matrix = this.matrix.dot(rotation)
         return this
     }
