@@ -24,12 +24,34 @@ varying vec3 v_Normal, v_LightDirection;
 
 void main(void) {
     vec3 Normal = normalize(v_Normal);
-    float light = max(dot(Normal, v_LightDirection), 0.1);
-    gl_FragColor = vec4(0.0, 0.6, 0.6, 0.6) * light;
+    float light = max(dot(Normal, v_LightDirection), 0.4);
+    gl_FragColor = vec4(0.0, 0.6, 0.6, 1) * light;
 }
 `
 
 console.log(vector.cross([1, 2, 3], [0, 1, 0]))
+
+class Leaf extends Model {
+    constructor(gl, size) {
+        // prettier-ignore
+        const vertices = [
+            [   0, -0, 0], 
+            [ 0.5, 1, 0.2], 
+            [   0, 2, 0], 
+            [-0.5, 1, 0.2]
+        ].map(vertex => vertex.map(n => size * n))
+
+        // prettier-ignore
+        const indices = [
+            [0, 1, 2], 
+            [0, 2, 3]
+        ]
+
+        super(gl, vertices, indices)
+
+        const axis = vector.normalize([Math.random() - 0.5, 0, Math.random() - 0.5, 0])
+    }
+}
 
 class Branch extends Cylinder {
     constructor(gl, radius, total, current = total, branchable = true) {
@@ -48,8 +70,8 @@ class Branch extends Cylinder {
         }
 
         // twigs
-        for (let i = 0; i < 6; i++) {
-            if (Math.random() < Math.pow(1 - bottomRadius, 3) && 2 < current && branchable) {
+        for (let i = 0; i < 5; i++) {
+            if (Math.random() < Math.pow(1 - bottomRadius, 2) && 2 < current && branchable) {
                 console.log("twig!")
                 const axis = vector.normalize([Math.random() - 0.5, 0, Math.random() - 0.5, 0])
                 this.children.push(
@@ -60,7 +82,7 @@ class Branch extends Cylinder {
 
         // continue current
         if (2 < current) {
-            if (Math.random() < Math.pow(bottomRadius, 2)) {
+            if (Math.random() < Math.pow(bottomRadius, 1)) {
                 // branch
                 const axis = vector.normalize([Math.random() - 0.5, 0, Math.random() - 0.5, 0])
                 this.children.push(
@@ -70,6 +92,14 @@ class Branch extends Cylinder {
             } else {
                 // don't branch
                 this.children.push(new Branch(gl, topRadius, total, current - 1))
+            }
+        } else {
+            this.children.push(new Leaf(gl, 0.5))
+            for (let i = 0; i < 4; i++) {
+                const axis = vector.normalize([Math.random() - 0.5, 0, Math.random() - 0.5, 0])
+                this.children.push(
+                    new Leaf(gl, 0.5).translate(0, -1 * Math.random() * 2, 0).rotate(0.8, ...axis)
+                )
             }
         }
     }
@@ -81,7 +111,7 @@ class Tree {
             breaks: 4
         }
         this.trunk = new Cylinder(gl, 3, 1, 2)
-        this.trunk.children.push(new Branch(gl, 1, 9))
+        this.trunk.children.push(new Branch(gl, 1, 8))
     }
 
     draw(gl, shader, delta) {
