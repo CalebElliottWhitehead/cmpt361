@@ -27,15 +27,21 @@ class Entity {
         return this
     }
 
-    rotate(theta, x, y, z) {
+    rotate(theta, x = 0, y = 0, z = 0) {
         const rotation = create.matrix.rotation.axis(theta, x, y, z)
         this.matrix = this.matrix.dot(rotation)
         return this
     }
 
-    translate(x, y, z) {
+    translate(x = 0, y = 0, z = 0) {
         const translation = create.matrix.translation(x, y, z)
         this.matrix = this.matrix.dot(translation)
+        return this
+    }
+
+    scale(x, y = x, z = x) {
+        const scale = create.matrix.scale(x, y, z)
+        this.matrix = this.matrix.dot(scale)
         return this
     }
 }

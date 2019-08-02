@@ -4,6 +4,8 @@ const tan = theta => Math.tan(theta)
 
 const vector = {
     multiply: (vec1, vec2) => vec1.reduce((acc, cur, i) => acc + cur * vec2[i], 0),
+    mix: (vecX, vecY, num) => vecX.map((x, indexY) => x * (1 - num) + vecY[indexY] * num),
+    //x * (1 - a) + y * a
     cross: (vec1, vec2) => [
         vec1[1] * vec2[2] - vec1[2] * vec2[1],
         vec1[2] * vec2[0] - vec1[0] * vec2[2],
@@ -62,18 +64,26 @@ class Matrix {
     }
 
     get inverse() {
-        const partialTranspose = [
-            [this.m[0][0], this.m[1][0], this.m[2][0]],
-            [this.m[0][1], this.m[1][1], this.m[2][1]],
-            [this.m[0][2], this.m[1][2], this.m[2][2]]
-        ]
-        const partialAffine = partialTranspose.map(
-            vec => -1 * vector.multiply(vec, this.m[3].slice(0, 3))
-        )
-        const inverse = partialTranspose.map(vec => [...vec, 0])
-        inverse.push([...partialAffine, 1])
-        return new Matrix(inverse)
+        // [            inv(M), 0]
+        // [-inv(M) * position, 1]
+
+        const inversePosition = this.m
+            .slice(0, 3)
+            .map(vec => vector.multiply(vector.negate(vec), this.m[3]))
+
+        // prettier-ignore
+        return new Matrix([
+            [this.m[0][0], this.m[1][0], this.m[2][0], 0],
+            [this.m[0][1], this.m[1][1], this.m[2][1], 0],
+            [this.m[0][2], this.m[1][2], this.m[2][2], 0],
+            [                      ...inversePosition, 1]
+        ])
     }
+
+    // [1.00,  0.00,  0.00, 0.00]
+    // [0.00,  0.83, -0.56, 0.00]
+    // [0.00,  0.56,  0.83, 0.00]
+    // [0.00, 21.82, 24.11, 1.00]
 
     get transpose() {
         return new Matrix(

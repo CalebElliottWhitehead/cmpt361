@@ -14,6 +14,23 @@ const create = {
             [0, 0, 1, 0], 
             [x, y, z, 1]
         ]),
+        scale: (x,y,z) => new Matrix([
+            [x, 0, 0, 0],
+            [0, y, 0, 0],
+            [0, 0, z, 0],
+            [0, 0, 0, 1]
+        ]),
+        lookAt: (position, target, up) => {
+            const zAxis = vector.normalize(vector.subtract(position, target))
+            const xAxis = vector.normalize(vector.cross(up, zAxis))
+            const yAxis = vector.normalize(vector.cross(zAxis, xAxis))
+            return new Matrix([
+               [   ...xAxis, 0],
+               [   ...yAxis, 0],
+               [   ...zAxis, 0],
+               [...position, 1]
+            ])
+        },
         rotation: {
             x: theta => new Matrix([
                 [1,           0,          0, 0],
@@ -79,6 +96,8 @@ const create = {
         const canvas = window.document.createElement("canvas")
         canvas.width = Math.min(window.innerHeight, window.innerWidth)
         canvas.height = Math.min(window.innerHeight, window.innerWidth)
+        // canvas.style.margin = "auto"
+        canvas.style.display = "block"
         window.document.body.appendChild(canvas)
         window.document.body.style.margin = 0
         window.document.body.style.overflow = "hidden"
@@ -86,54 +105,52 @@ const create = {
         return canvas.getContext("webgl")
     },
     shape: {
+        // prettier-ignore
         cube: (gl, width, height) =>
-            new Model(
-                gl,
-                [
-                    [-1.0, -1.0, 1.0],
-                    [1.0, -1.0, 1.0],
-                    [1.0, 1.0, 1.0],
-                    [-1.0, 1.0, 1.0],
-                    [-1.0, -1.0, -1.0],
-                    [-1.0, 1.0, -1.0],
-                    [1.0, 1.0, -1.0],
-                    [1.0, -1.0, -1.0],
-                    [-1.0, 1.0, -1.0],
-                    [-1.0, 1.0, 1.0],
-                    [1.0, 1.0, 1.0],
-                    [1.0, 1.0, -1.0],
-                    [-1.0, -1.0, -1.0],
-                    [1.0, -1.0, -1.0],
-                    [1.0, -1.0, 1.0],
-                    [-1.0, -1.0, 1.0],
-                    [1.0, -1.0, -1.0],
-                    [1.0, 1.0, -1.0],
-                    [1.0, 1.0, 1.0],
-                    [1.0, -1.0, 1.0],
-                    [-1.0, -1.0, -1.0],
-                    [-1.0, -1.0, 1.0],
-                    [-1.0, 1.0, 1.0],
-                    [-1.0, 1.0, -1.0]
-                ].map(vertex => [
-                    vertex[0] * width * 0.5,
-                    vertex[1] * height * 0.5,
-                    vertex[2] * width * 0.5
-                ]),
-                [
-                    [0, 1, 2],
-                    [0, 2, 3],
-                    [4, 5, 6],
-                    [4, 6, 7],
-                    [8, 9, 10],
-                    [8, 10, 11],
-                    [12, 13, 14],
-                    [12, 14, 15],
-                    [16, 17, 18],
-                    [16, 18, 19],
-                    [20, 21, 22],
-                    [20, 22, 23]
-                ]
-            ),
+            new Model(gl, [
+                [-1, -1,  1],
+                [ 1, -1,  1],
+                [ 1,  1,  1],
+                [-1,  1,  1],
+                [-1, -1, -1],
+                [-1,  1, -1],
+                [ 1,  1, -1],
+                [ 1, -1, -1],
+                [-1,  1, -1],
+                [-1,  1,  1],
+                [ 1,  1,  1],
+                [ 1,  1, -1],
+                [-1, -1, -1],
+                [ 1, -1, -1],
+                [ 1, -1,  1],
+                [-1, -1,  1],
+                [ 1, -1, -1],
+                [ 1,  1, -1],
+                [ 1,  1,  1],
+                [ 1, -1,  1],
+                [-1, -1, -1],
+                [-1, -1,  1],
+                [-1,  1,  1],
+                [-1,  1, -1]
+            ].map(vertex => [
+                vertex[0] * width * 0.5,
+                vertex[1] * height * 0.5,
+                vertex[2] * width * 0.5
+            ]),
+            [
+                [ 0,  1,  2],
+                [ 0,  2,  3],
+                [ 4,  5,  6],
+                [ 4,  6,  7],
+                [ 8,  9, 10],
+                [ 8, 10, 11],
+                [12, 13, 14],
+                [12, 14, 15],
+                [16, 17, 18],
+                [16, 18, 19],
+                [20, 21, 22],
+                [20, 22, 23]
+            ]),
         cylinder: (gl, height = 4, topRadius = 0.5, bottomRadius = 0.5, sides = 12) => {
             const stepTheta = (2 * Math.PI) / sides
             const verticesPerCap = 9 * sides
@@ -220,6 +237,56 @@ const create = {
             const model = new Model(gl, vertices, indices, normals)
             model.translate(0, height, 0)
             return model
+        },
+        sphere: (gl, n) => {
+            const vertices = []
+            const indices = []
+            const normals = []
+
+            function triangle(a, b, c) {
+                vertices.push([a, b, c])
+                normals.push([a, b, c])
+            }
+
+            function divideTriangle(a, b, c, count) {
+                if (count > 0) {
+                    var ab = vector.mix(a, b, 0.5)
+                    var ac = vector.mix(a, c, 0.5)
+                    var bc = vector.mix(b, c, 0.5)
+
+                    ab = vector.normalize(ab, true)
+                    ac = vector.normalize(ac, true)
+                    bc = vector.normalize(bc, true)
+
+                    divideTriangle(a, ab, ac, count - 1)
+                    divideTriangle(ab, b, bc, count - 1)
+                    divideTriangle(bc, c, ac, count - 1)
+                    divideTriangle(ab, bc, ac, count - 1)
+                } else {
+                    triangle(a, b, c)
+                }
+            }
+
+            function tetrahedron(a, b, c, d, n) {
+                divideTriangle(a, b, c, n)
+                divideTriangle(d, c, b, n)
+                divideTriangle(a, d, b, n)
+                divideTriangle(a, c, d, n)
+            }
+
+            tetrahedron(
+                [0.0, 0.0, -1.0, 1],
+                [0.0, 0.942809, 0.333333, 1],
+                [-0.816497, -0.471405, 0.333333, 1],
+                [0.816497, -0.471405, 0.333333, 1],
+                n
+            )
+
+            for (let i = 0; i < vertices.length * 3; i++) {
+                indices.push(i)
+            }
+
+            return new Model(gl, vertices, indices, normals)
         }
     }
 }

@@ -1,24 +1,8 @@
-class Camera extends Entity {
-    constructor(modelViewUniform, projectionUniform) {
-        super(new Matrix())
-        this.uniform = modelViewUniform
-        this.controllable = false
+class Input {
+    constructor() {}
 
-        this.width = gl.canvas.clientWidth
-        this.height = gl.canvas.clientHeight
-
-        const fieldOfView = (45 * Math.PI) / 180 // in radians
-        const aspect = this.width / this.height
-        const near = 0.1
-        const far = 100.0
-        this.projectionMatrix = create.matrix.projection(fieldOfView, aspect, near, far)
-        gl.uniformMatrix4fv(projectionUniform, false, this.projectionMatrix.out)
-    }
-
-    initControls(window, ...clickFunctions) {
+    initControls(window) {
         this.controllable = true
-
-        this.clickFunctions = clickFunctions
 
         this.wheel = 0
 
@@ -46,11 +30,8 @@ class Camera extends Entity {
 
         window.addEventListener("contextmenu", event => event.preventDefault())
 
-        document.querySelector("canvas").addEventListener("mousedown", event => {
-            if (event.button === 0) this.click.left = true
-        })
-
         window.addEventListener("mousedown", event => {
+            if (event.button === 0) this.click.left = true
             if (event.button === 2) this.click.right = true
         })
 
@@ -61,6 +42,7 @@ class Camera extends Entity {
         window.addEventListener("mousemove", event => {
             this.mousePosition.x = (event.clientX * 2) / this.width - 1
             this.mousePosition.y = ((event.clientY * 2) / this.height - 1) * -1
+            console.log(this.mousePosition.x, this.mousePosition.y)
         })
 
         window.addEventListener("wheel", event => {
@@ -113,52 +95,7 @@ class Camera extends Entity {
             this.clickPosition.x = this.mousePosition.x
             this.clickPosition.y = this.mousePosition.y
             this.click.left = false
-            this.clickFunctions.forEach(clickFunction =>
-                clickFunction(this.mousePosition.x, this.mousePosition.y)
-            )
+            console.log(this.clickPosition.x, this.clickPosition.y)
         }
     }
-
-    lookAtCenter(position) {
-        const up = [0, 1, 0]
-        var zAxis = vector.normalize(vector.negate(position))
-        var xAxis = vector.normalize(vector.cross(up, zAxis))
-        var yAxis = vector.normalize(vector.cross(zAxis, xAxis))
-
-        // prettier-ignore
-        this.matrix = new Matrix([
-            [...xAxis, 0],
-            [...yAxis, 0],
-            [...zAxis, 0],
-            [...position, 1]
-        ])
-    }
-
-    reset(theta = 0.4, x = 0, y = -25, z = -35) {
-        this.matrix = new Matrix()
-        this.matrix = create.matrix.translation(x, y, z)
-        this.matrix = create.matrix.rotation.x(theta).dot(this.matrix)
-    }
-
-    view(gl) {
-        gl.uniformMatrix4fv(this.uniform, false, this.matrix.out)
-    }
-
-    clear(gl) {
-        gl.clearColor(0.6, 0.6, 0.9, 1.0) // Clear to black, fully opaque
-        gl.clearDepth(1.0) // Clear everything
-        gl.enable(gl.DEPTH_TEST) // Enable depth testing
-        gl.depthFunc(gl.LEQUAL) // Near things obscure far things
-        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT)
-    }
 }
-
-// var v = normalize(subtract(at, eye)) // view direction vector
-// var n = normalize(cross(v, up)) // perpendicular vector
-// var u = normalize(cross(n, v)) // "new" up vector
-
-// v = negate(v)
-
-// var result = mat4(vec4(n, -dot(n, eye)), vec4(u, -dot(u, eye)), vec4(v, -dot(v, eye)), vec4())
-
-// return result

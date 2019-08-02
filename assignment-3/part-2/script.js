@@ -1,5 +1,29 @@
 const gl = create.canvas(window)
 
+class fpsCounter {
+    constructor() {
+        this.fpsCounter = document.createElement("div")
+        this.fpsCounter.style.position = "absolute"
+        this.fpsCounter.style.top = 0
+        this.fpsCounter.style.color = "white"
+        document.body.appendChild(this.fpsCounter)
+
+        this.min = Infinity
+        this.fps = 60
+
+        setInterval(() => {
+            this.fpsCounter.innerHTML = `${Math.floor(this.min)} fps`
+            this.min = Infinity
+        }, 250)
+    }
+
+    update(fps) {
+        if (fps < this.min) {
+            this.min = fps
+        }
+    }
+}
+
 const vertexShaderSource = `
 precision mediump float;
 
@@ -20,105 +44,16 @@ void main(void) {
 const fragmentShaderSource = `
 precision mediump float;
 
+uniform vec4 u_Color;
+
 varying vec3 v_Normal, v_LightDirection;
 
 void main(void) {
     vec3 Normal = normalize(v_Normal);
     float light = max(dot(Normal, v_LightDirection), 0.4);
-    gl_FragColor = vec4(0.0, 0.6, 0.6, 1) * light;
+    gl_FragColor = u_Color * light;
 }
 `
-
-console.log(vector.cross([1, 2, 3], [0, 1, 0]))
-
-class Leaf extends Model {
-    constructor(gl, size) {
-        // prettier-ignore
-        const vertices = [
-            [   0, -0, 0], 
-            [ 0.5, 1, 0.2], 
-            [   0, 2, 0], 
-            [-0.5, 1, 0.2]
-        ].map(vertex => vertex.map(n => size * n))
-
-        // prettier-ignore
-        const indices = [
-            [0, 1, 2], 
-            [0, 2, 3]
-        ]
-
-        super(gl, vertices, indices)
-
-        const axis = vector.normalize([Math.random() - 0.5, 0, Math.random() - 0.5, 0])
-    }
-}
-
-class Branch extends Cylinder {
-    constructor(gl, radius, total, current = total, branchable = true) {
-        const topRadius = (current - 1) / total
-        const bottomRadius = current / total
-        const sides = Math.floor(Math.max(bottomRadius * 14, 3))
-        const length = Math.pow(bottomRadius, 2) * 2 + 2
-
-        super(gl, length, radius * topRadius, radius * bottomRadius, sides)
-
-        // rotate self
-        if (Math.random() < 0.3) {
-            this.rotate(topRadius - 0.7, 0.71, 0, 0.71)
-        } else {
-            this.rotate(-(topRadius - 0.7), 0.71, 0, 0.71)
-        }
-
-        // twigs
-        for (let i = 0; i < 5; i++) {
-            if (Math.random() < Math.pow(1 - bottomRadius, 2) && 2 < current && branchable) {
-                console.log("twig!")
-                const axis = vector.normalize([Math.random() - 0.5, 0, Math.random() - 0.5, 0])
-                this.children.push(
-                    new Branch(gl, topRadius, total, current - 1, false).rotate(1, ...axis)
-                )
-            }
-        }
-
-        // continue current
-        if (2 < current) {
-            if (Math.random() < Math.pow(bottomRadius, 1)) {
-                // branch
-                const axis = vector.normalize([Math.random() - 0.5, 0, Math.random() - 0.5, 0])
-                this.children.push(
-                    new Branch(gl, topRadius, total, current - 1).rotate(0.6, ...axis),
-                    new Branch(gl, topRadius, total, current - 1).rotate(-0.6, ...axis)
-                )
-            } else {
-                // don't branch
-                this.children.push(new Branch(gl, topRadius, total, current - 1))
-            }
-        } else {
-            this.children.push(new Leaf(gl, 0.5))
-            for (let i = 0; i < 4; i++) {
-                const axis = vector.normalize([Math.random() - 0.5, 0, Math.random() - 0.5, 0])
-                this.children.push(
-                    new Leaf(gl, 0.5).translate(0, -1 * Math.random() * 2, 0).rotate(0.8, ...axis)
-                )
-            }
-        }
-    }
-}
-
-class Tree {
-    constructor(gl) {
-        const pointers = {
-            breaks: 4
-        }
-        this.trunk = new Cylinder(gl, 3, 1, 2)
-        this.trunk.children.push(new Branch(gl, 1, 8))
-    }
-
-    draw(gl, shader, delta) {
-        this.trunk.rotateY(delta)
-        this.trunk.draw(gl, shader)
-    }
-}
 
 const shaderProgram = create.shader.program(gl, vertexShaderSource, fragmentShaderSource)
 
@@ -131,7 +66,8 @@ const shader = {
     u: {
         projectionMatrix: gl.getUniformLocation(shaderProgram, "u_ProjectionMatrix"),
         modelViewMatrix: gl.getUniformLocation(shaderProgram, "u_ModelViewMatrix"),
-        modelMatrix: gl.getUniformLocation(shaderProgram, "u_ModelMatrix")
+        modelMatrix: gl.getUniformLocation(shaderProgram, "u_ModelMatrix"),
+        color: gl.getUniformLocation(shaderProgram, "u_Color")
     }
 }
 gl.useProgram(shader.program)
@@ -139,21 +75,26 @@ gl.useProgram(shader.program)
 const bunny = new Model(gl, getVertices(), getFaces())
 bunny.translate(0, 0.2, 0)
 
-const cube = create.shape.cube(gl, 20, 1)
+const cube = create.shape.cube(gl, 100, 1)
 cube.translate(0, -0.5, 0)
+cube.color = [0.2, 0.5, 0.2, 1]
 
 const tree = new Tree(gl)
+
+const counter = new fpsCounter()
 
 const render = (now, then, camera) => {
     now *= 0.001 // convert to seconds
     const delta = now - then
+
+    counter.update(1 / delta)
 
     camera.control()
     camera.clear(gl)
     camera.view(gl)
 
     cube.draw(gl, shader)
-    tree.draw(gl, shader, delta)
+    tree.draw(gl, shader)
 
     then = now
     requestAnimationFrame(now => render(now, then, camera))
