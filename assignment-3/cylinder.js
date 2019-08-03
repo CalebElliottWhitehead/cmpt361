@@ -47,23 +47,23 @@ class Cylinder extends Model {
 
         // sides
         for (let j = 0; j < sides; j++) {
-            for (let k = 0; k < 3; k++, index++) {
-                vertices[index] = vertices[0 + k + 9 * j]
+            for (let k = 0; k < 3; k++) {
+                vertices.push(vertices[0 + k + 9 * j])
             }
-            for (let k = 0; k < 3; k++, index++) {
-                vertices[index] = vertices[6 + k + 9 * j]
+            for (let k = 0; k < 3; k++) {
+                vertices.push(vertices[6 + k + 9 * j])
             }
-            for (let k = 0; k < 3; k++, index++) {
-                vertices[index] = vertices[verticesPerCap + k + 9 * j]
+            for (let k = 0; k < 3; k++) {
+                vertices.push(vertices[verticesPerCap + k + 9 * j])
             }
-            for (let k = 0; k < 3; k++, index++) {
-                vertices[index] = vertices[0 + k + 9 * j]
+            for (let k = 0; k < 3; k++) {
+                vertices.push(vertices[0 + k + 9 * j])
             }
-            for (let k = 0; k < 3; k++, index++) {
-                vertices[index] = vertices[verticesPerCap + k + 9 * j]
+            for (let k = 0; k < 3; k++) {
+                vertices.push(vertices[verticesPerCap + k + 9 * j])
             }
-            for (let k = 0; k < 3; k++, index++) {
-                vertices[index] = vertices[verticesPerCap + 6 + k + 9 * j]
+            for (let k = 0; k < 3; k++) {
+                vertices.push(vertices[verticesPerCap + 6 + k + 9 * j])
             }
         }
 

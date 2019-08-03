@@ -82,9 +82,4 @@ class Tree extends Cylinder {
         this.color = [0.47, 0.32, 0.24, 1]
         this.children.push(new Branch(gl, 1, 9))
     }
-
-    // draw(gl, shader, delta) {
-    //     // this.trunk.rotateY(delta)
-    //     this.trunk.draw(gl, shader)
-    // }
 }

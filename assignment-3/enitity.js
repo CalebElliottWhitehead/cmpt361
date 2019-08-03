@@ -44,4 +44,8 @@ class Entity {
         this.matrix = this.matrix.dot(scale)
         return this
     }
+
+    draw() {
+        return this
+    }
 }

@@ -1,3 +1,7 @@
+const sin = theta => Math.sin(theta)
+const cos = theta => Math.cos(theta)
+const tan = theta => Math.tan(theta)
+
 const create = {
     // prettier-ignore
     matrix: {
@@ -58,6 +62,50 @@ const create = {
             ])
         }
     },
+    // prettier-ignore
+    cube: (gl, width, height) => new Model(gl, [
+        [-1, -1,  1],
+        [ 1, -1,  1],
+        [ 1,  1,  1],
+        [-1,  1,  1],
+        [-1, -1, -1],
+        [-1,  1, -1],
+        [ 1,  1, -1],
+        [ 1, -1, -1],
+        [-1,  1, -1],
+        [-1,  1,  1],
+        [ 1,  1,  1],
+        [ 1,  1, -1],
+        [-1, -1, -1],
+        [ 1, -1, -1],
+        [ 1, -1,  1],
+        [-1, -1,  1],
+        [ 1, -1, -1],
+        [ 1,  1, -1],
+        [ 1,  1,  1],
+        [ 1, -1,  1],
+        [-1, -1, -1],
+        [-1, -1,  1],
+        [-1,  1,  1],
+        [-1,  1, -1]
+    ].map(vertex => [
+        vertex[0] * width * 0.5,
+        vertex[1] * height * 0.5,
+        vertex[2] * width * 0.5
+    ]), [
+        [ 0,  1,  2],
+        [ 0,  2,  3],
+        [ 4,  5,  6],
+        [ 4,  6,  7],
+        [ 8,  9, 10],
+        [ 8, 10, 11],
+        [12, 13, 14],
+        [12, 14, 15],
+        [16, 17, 18],
+        [16, 18, 19],
+        [20, 21, 22],
+        [20, 22, 23]
+    ]),
     shader: {
         program: (gl, vertexShaderSource, fragmentShaderSource) => {
             const loadShader = (gl, type, source) => {
@@ -96,197 +144,11 @@ const create = {
         const canvas = window.document.createElement("canvas")
         canvas.width = Math.min(window.innerHeight, window.innerWidth)
         canvas.height = Math.min(window.innerHeight, window.innerWidth)
-        // canvas.style.margin = "auto"
         canvas.style.display = "block"
         window.document.body.appendChild(canvas)
         window.document.body.style.margin = 0
         window.document.body.style.overflow = "hidden"
         window.document.body.style.backgroundColor = "#222"
         return canvas.getContext("webgl")
-    },
-    shape: {
-        // prettier-ignore
-        cube: (gl, width, height) =>
-            new Model(gl, [
-                [-1, -1,  1],
-                [ 1, -1,  1],
-                [ 1,  1,  1],
-                [-1,  1,  1],
-                [-1, -1, -1],
-                [-1,  1, -1],
-                [ 1,  1, -1],
-                [ 1, -1, -1],
-                [-1,  1, -1],
-                [-1,  1,  1],
-                [ 1,  1,  1],
-                [ 1,  1, -1],
-                [-1, -1, -1],
-                [ 1, -1, -1],
-                [ 1, -1,  1],
-                [-1, -1,  1],
-                [ 1, -1, -1],
-                [ 1,  1, -1],
-                [ 1,  1,  1],
-                [ 1, -1,  1],
-                [-1, -1, -1],
-                [-1, -1,  1],
-                [-1,  1,  1],
-                [-1,  1, -1]
-            ].map(vertex => [
-                vertex[0] * width * 0.5,
-                vertex[1] * height * 0.5,
-                vertex[2] * width * 0.5
-            ]),
-            [
-                [ 0,  1,  2],
-                [ 0,  2,  3],
-                [ 4,  5,  6],
-                [ 4,  6,  7],
-                [ 8,  9, 10],
-                [ 8, 10, 11],
-                [12, 13, 14],
-                [12, 14, 15],
-                [16, 17, 18],
-                [16, 18, 19],
-                [20, 21, 22],
-                [20, 22, 23]
-            ]),
-        cylinder: (gl, height = 4, topRadius = 0.5, bottomRadius = 0.5, sides = 12) => {
-            const stepTheta = (2 * Math.PI) / sides
-            const verticesPerCap = 9 * sides
-
-            const vertices = []
-
-            let index = 0
-
-            // top cap
-            let theta = 0
-            while (index < verticesPerCap) {
-                vertices[index] = Math.cos(theta) * topRadius
-                vertices[index + 1] = height
-                vertices[index + 2] = Math.sin(theta) * topRadius
-                theta += stepTheta
-
-                vertices[index + 3] = 0.0
-                vertices[index + 4] = height
-                vertices[index + 5] = 0.0
-
-                vertices[index + 6] = Math.cos(theta) * topRadius
-                vertices[index + 7] = height
-                vertices[index + 8] = Math.sin(theta) * topRadius
-
-                index += 9
-            }
-
-            // bottom cap
-            theta = 0
-            while (index < verticesPerCap + verticesPerCap) {
-                vertices[index + 6] = Math.cos(theta) * bottomRadius
-                vertices[index + 7] = -height
-                vertices[index + 8] = Math.sin(theta) * bottomRadius
-                theta += stepTheta
-
-                vertices[index + 3] = 0.0
-                vertices[index + 4] = -height
-                vertices[index + 5] = 0.0
-
-                vertices[index] = Math.cos(theta) * bottomRadius
-                vertices[index + 1] = -height
-                vertices[index + 2] = Math.sin(theta) * bottomRadius
-
-                index += 9
-            }
-
-            // sides
-            for (let j = 0; j < sides; j++) {
-                for (let k = 0; k < 3; k++, index++) {
-                    vertices[index] = vertices[0 + k + 9 * j]
-                }
-                for (let k = 0; k < 3; k++, index++) {
-                    vertices[index] = vertices[6 + k + 9 * j]
-                }
-                for (let k = 0; k < 3; k++, index++) {
-                    vertices[index] = vertices[verticesPerCap + k + 9 * j]
-                }
-                for (let k = 0; k < 3; k++, index++) {
-                    vertices[index] = vertices[0 + k + 9 * j]
-                }
-                for (let k = 0; k < 3; k++, index++) {
-                    vertices[index] = vertices[verticesPerCap + k + 9 * j]
-                }
-                for (let k = 0; k < 3; k++, index++) {
-                    vertices[index] = vertices[verticesPerCap + 6 + k + 9 * j]
-                }
-            }
-
-            const indices = []
-            for (index = 0; index < vertices.length / 3; index += 3) {
-                indices.push([index, index + 1, index + 2])
-            }
-
-            const normals = []
-            for (index = 0; index < vertices.length; index += 9) {
-                const a = [vertices[index], vertices[index + 1], vertices[index + 2]]
-                const b = [vertices[index + 3], vertices[index + 4], vertices[index + 5]]
-                const c = [vertices[index + 6], vertices[index + 7], vertices[index + 8]]
-                const normal = vector.normalize(
-                    vector.cross(vector.subtract(a, b), vector.subtract(a, c))
-                )
-                normals.push(normal, normal, normal)
-            }
-            const model = new Model(gl, vertices, indices, normals)
-            model.translate(0, height, 0)
-            return model
-        },
-        sphere: (gl, n) => {
-            const vertices = []
-            const indices = []
-            const normals = []
-
-            function triangle(a, b, c) {
-                vertices.push([a, b, c])
-                normals.push([a, b, c])
-            }
-
-            function divideTriangle(a, b, c, count) {
-                if (count > 0) {
-                    var ab = vector.mix(a, b, 0.5)
-                    var ac = vector.mix(a, c, 0.5)
-                    var bc = vector.mix(b, c, 0.5)
-
-                    ab = vector.normalize(ab, true)
-                    ac = vector.normalize(ac, true)
-                    bc = vector.normalize(bc, true)
-
-                    divideTriangle(a, ab, ac, count - 1)
-                    divideTriangle(ab, b, bc, count - 1)
-                    divideTriangle(bc, c, ac, count - 1)
-                    divideTriangle(ab, bc, ac, count - 1)
-                } else {
-                    triangle(a, b, c)
-                }
-            }
-
-            function tetrahedron(a, b, c, d, n) {
-                divideTriangle(a, b, c, n)
-                divideTriangle(d, c, b, n)
-                divideTriangle(a, d, b, n)
-                divideTriangle(a, c, d, n)
-            }
-
-            tetrahedron(
-                [0.0, 0.0, -1.0, 1],
-                [0.0, 0.942809, 0.333333, 1],
-                [-0.816497, -0.471405, 0.333333, 1],
-                [0.816497, -0.471405, 0.333333, 1],
-                n
-            )
-
-            for (let i = 0; i < vertices.length * 3; i++) {
-                indices.push(i)
-            }
-
-            return new Model(gl, vertices, indices, normals)
-        }
     }
 }

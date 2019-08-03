@@ -1,29 +1,3 @@
-const gl = create.canvas(window)
-
-class fpsCounter {
-    constructor() {
-        this.fpsCounter = document.createElement("div")
-        this.fpsCounter.style.position = "absolute"
-        this.fpsCounter.style.top = 0
-        this.fpsCounter.style.color = "white"
-        document.body.appendChild(this.fpsCounter)
-
-        this.min = Infinity
-        this.fps = 60
-
-        setInterval(() => {
-            this.fpsCounter.innerHTML = `${Math.floor(this.min)} fps`
-            this.min = Infinity
-        }, 250)
-    }
-
-    update(fps) {
-        if (fps < this.min) {
-            this.min = fps
-        }
-    }
-}
-
 const vertexShaderSource = `
 precision mediump float;
 
@@ -55,8 +29,11 @@ void main(void) {
 }
 `
 
-const shaderProgram = create.shader.program(gl, vertexShaderSource, fragmentShaderSource)
+// initialize canvas
+const gl = create.canvas(window)
 
+// initialize shader
+const shaderProgram = create.shader.program(gl, vertexShaderSource, fragmentShaderSource)
 const shader = {
     program: shaderProgram,
     a: {
@@ -72,36 +49,29 @@ const shader = {
 }
 gl.useProgram(shader.program)
 
-const bunny = new Model(gl, getVertices(), getFaces())
-bunny.translate(0, 0.2, 0)
-
-const cube = create.shape.cube(gl, 100, 1)
+// initialize cube
+const cube = create.cube(gl, 100, 1)
 cube.translate(0, -0.5, 0)
 cube.color = [0.2, 0.5, 0.2, 1]
 
+// initialize tree
 const tree = new Tree(gl)
 
-const counter = new fpsCounter()
-
-const render = (now, then, camera) => {
-    now *= 0.001 // convert to seconds
-    const delta = now - then
-
-    counter.update(1 / delta)
-
-    camera.control()
-    camera.clear(gl)
-    camera.view(gl)
-
-    cube.draw(gl, shader)
-    tree.draw(gl, shader)
-
-    then = now
-    requestAnimationFrame(now => render(now, then, camera))
-}
-
+// initialize camera
 const camera = new Camera(shader.u.modelViewMatrix, shader.u.projectionMatrix)
-camera.initControls(window)
 camera.reset()
 
-render(0, 0, camera)
+// initialize input
+const input = new Input(window)
+input.initKeyPress(window, "r", camera.reset.bind(camera))
+input.initScroll(window, z => (camera.matrix.m[3][2] += z * -1))
+input.initMouseHold(window, "right", (x, y) => {
+    camera.rotateY(x)
+    camera.translate(0, y * 10, 0)
+})
+
+// initialize scene
+const scene = new Scene()
+scene.append(cube, tree, camera)
+scene.onRenderCall(() => camera.clear(gl), () => camera.view(gl))
+scene.render(gl, shader)
